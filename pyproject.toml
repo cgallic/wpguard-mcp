@@ -35,6 +35,7 @@ dev = [
 
 [project.scripts]
 wpguard-mcp = "wpguard_mcp.server:main"
+wpguard = "wpguard_mcp.audit:main"
 
 [project.urls]
 Homepage = "https://github.com/cgallic/wpguard-mcp"
