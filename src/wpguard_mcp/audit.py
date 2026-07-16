@@ -20,7 +20,6 @@ import json
 import re
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from .guard import PacketStore, SnapshotStore, get_packet_store, get_snapshot_store
 
@@ -50,10 +49,10 @@ def _parse_iso(value: str) -> datetime:
 def build_report(
     packet_store: PacketStore,
     snapshot_store: SnapshotStore,
-    site: Optional[str] = None,
-    since: Optional[timedelta] = None,
-    status: Optional[str] = None,
-    now: Optional[datetime] = None,
+    site: str | None = None,
+    since: timedelta | None = None,
+    status: str | None = None,
+    now: datetime | None = None,
 ) -> list[dict]:
     """Return a list of packet records (newest first), each with its snapshots."""
     now = now or datetime.now(timezone.utc)
@@ -102,7 +101,7 @@ def _truncate(value, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     parser = argparse.ArgumentParser(prog="wpguard", description="wpguard-mcp local tools")
     sub = parser.add_subparsers(dest="command", required=True)
 

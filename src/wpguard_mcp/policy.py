@@ -34,8 +34,9 @@ import hmac
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
 
 # Scope name -> privilege level. A token of level N may call any tool of tier
 # <= N.
@@ -122,7 +123,7 @@ def require_configured() -> None:
         )
 
 
-def authenticate(authorization_header: Optional[str]) -> Optional[str]:
+def authenticate(authorization_header: str | None) -> str | None:
     """Return the scope for a bearer Authorization header, or None if it matches
     no configured token. Compares against every configured token (not
     short-circuiting) to avoid leaking which token, if any, was close.
@@ -130,7 +131,7 @@ def authenticate(authorization_header: Optional[str]) -> Optional[str]:
     if not authorization_header or not authorization_header.startswith("Bearer "):
         return None
     presented = authorization_header[len("Bearer ") :].strip()
-    matched: Optional[str] = None
+    matched: str | None = None
     for token, scope in load_tokens().items():
         if hmac.compare_digest(presented, token):
             matched = scope
@@ -208,11 +209,11 @@ class Decision:
     ok: bool
     status: int = 200
     message: str = ""
-    scope: Optional[str] = None
-    tool: Optional[str] = None
+    scope: str | None = None
+    tool: str | None = None
 
 
-def _extract_tool_call(body: bytes) -> Optional[str]:
+def _extract_tool_call(body: bytes) -> str | None:
     """Return the tool name if `body` is an MCP tools/call request, else None."""
     if not body:
         return None
@@ -230,7 +231,7 @@ def _extract_tool_call(body: bytes) -> Optional[str]:
     return None
 
 
-def evaluate_request(authorization_header: Optional[str], body: bytes, rate_limiter: RateLimiter) -> Decision:
+def evaluate_request(authorization_header: str | None, body: bytes, rate_limiter: RateLimiter) -> Decision:
     """Authenticate + authorize + rate-limit a single request, purely.
 
     Returns a Decision the transport layer turns into a response. This is where
@@ -259,6 +260,8 @@ def evaluate_request(authorization_header: Optional[str], body: bytes, rate_limi
             tool=tool,
         )
 
+    # scope is non-None here, so authenticate() matched a "Bearer <token>" header.
+    assert authorization_header is not None
     presented = authorization_header[len("Bearer ") :].strip()
     allowed, reason = rate_limiter.check(presented, tier)
     if not allowed:

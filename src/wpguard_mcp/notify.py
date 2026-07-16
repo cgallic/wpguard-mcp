@@ -34,9 +34,9 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Optional
 
 logger = logging.getLogger("wpguard.notify")
 
@@ -73,10 +73,10 @@ class Delivery:
 
 # Test seam: set to a callable(list[Delivery]) to capture deliveries instead of
 # firing real HTTP. Left None in production so emit_event does real POSTs.
-_sink: Optional[Callable[[list], None]] = None
+_sink: Callable[[list], None] | None = None
 
 
-def set_sink(sink: Optional[Callable[[list], None]]) -> None:
+def set_sink(sink: Callable[[list], None] | None) -> None:
     """Install (or clear, with None) a delivery sink -- used by tests to assert
     what would be sent without making network calls.
     """

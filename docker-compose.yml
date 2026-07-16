@@ -1,0 +1,25 @@
+# Minimal wpguard-mcp deployment.
+#
+#   1. cp .env.example .env  and set WPGUARD_MCP_TOKEN (and any site keys)
+#   2. docker compose up -d
+#
+# The published port is bound to 127.0.0.1 on the host so the server is NOT
+# exposed publicly -- reach it from an MCP client on the same machine, or over
+# a tunnel/tailnet you control. See SECURITY.md.
+services:
+  wpguard-mcp:
+    image: ghcr.io/cgallic/wpguard-mcp:latest
+    # To build locally instead of pulling the published image:
+    # build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:8642:8642"
+    volumes:
+      # Persist the packet ledger, snapshots, and site registry across restarts.
+      - wpguard-state:/state
+      # Optional: mount your SSH keys read-only for the SSH+WP-CLI transport.
+      # - ${HOME}/.ssh:/home/wpguard/.ssh:ro
+    restart: unless-stopped
+
+volumes:
+  wpguard-state:

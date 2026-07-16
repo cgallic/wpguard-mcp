@@ -10,7 +10,6 @@ from wpguard_mcp.tools import mutate, packets
 
 
 def test_apply_requires_approval_then_writes(wired):
-    store = wired["packet_store"]
     state = wired["state"]
     state["values"][("option", "blogname")] = "old"
 

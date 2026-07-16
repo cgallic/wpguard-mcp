@@ -32,14 +32,25 @@ def test_invalid_layout_rejected():
         SiteConfig(name="s", transport="ssh", ssh_host="h", layout="nonsense")
 
 
-def test_bedrock_path_flows_into_wp_cli_command():
+def test_bedrock_path_flows_into_wp_cli_command(monkeypatch):
     from wpguard_mcp.transports import ssh_wpcli
 
     site = SiteConfig(name="s", transport="ssh", ssh_host="h", wp_path="/srv/app", layout="bedrock")
-    cmd = ssh_wpcli._build_ssh_command(site, "placeholder")
-    assert cmd[-1] == "placeholder"  # sanity: builder returns the remote command last
 
-    # Build a real wp-cli invocation and confirm the --path points at web/wp.
-    parts = ["wp", "option", "get", "blogname"]
-    wp_path = site.effective_wp_path()
-    assert wp_path == "/srv/app/web/wp"
+    captured = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(cmd, capture_output, text, timeout):
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(ssh_wpcli.subprocess, "run", fake_run)
+    ssh_wpcli.run_wp_cli(site, ["option", "get", "blogname"])
+
+    # The remote command string is the last ssh arg; it must point --path at web/wp.
+    remote_command = captured["cmd"][-1]
+    assert "--path=/srv/app/web/wp" in remote_command

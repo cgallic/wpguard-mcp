@@ -43,7 +43,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 STATE_DIR = Path(os.environ.get("WPGUARD_STATE_DIR", "state"))
 DEFAULT_PACKET_STORE_PATH = STATE_DIR / "packets" / "packets.jsonl"
@@ -133,11 +133,11 @@ class ChangePacket:
     risk: str = "low"
     target: str = WILDCARD_TARGET
     status: str = STATUS_PROPOSED
-    approver: Optional[str] = None
+    approver: str | None = None
     opened_at: str = field(default_factory=_now)
-    approved_at: Optional[str] = None
-    closed_at: Optional[str] = None
-    outcome: Optional[str] = None
+    approved_at: str | None = None
+    closed_at: str | None = None
+    outcome: str | None = None
     log: list = field(default_factory=list)
 
     @property
@@ -151,7 +151,7 @@ class ChangePacket:
     def lock_expires_at(self, ttl_seconds: int) -> datetime:
         return _parse_iso(self.opened_at) + _timedelta(ttl_seconds)
 
-    def lock_is_live(self, ttl_seconds: int, now: Optional[datetime] = None) -> bool:
+    def lock_is_live(self, ttl_seconds: int, now: datetime | None = None) -> bool:
         """A packet holds a live lock while it is open and within its TTL window."""
         if not self.is_open:
             return False
@@ -206,21 +206,21 @@ class PacketStore:
             )
             self._packets[packet.id] = packet
         elif kind == "approve":
-            packet = self._packets.get(event["id"])
-            if packet is not None:
-                packet.status = STATUS_APPROVED
-                packet.approver = event.get("approver")
-                packet.approved_at = event.get("approved_at", _now())
+            existing = self._packets.get(event["id"])
+            if existing is not None:
+                existing.status = STATUS_APPROVED
+                existing.approver = event.get("approver")
+                existing.approved_at = event.get("approved_at", _now())
         elif kind == "log":
-            packet = self._packets.get(event["id"])
-            if packet is not None:
-                packet.log.append({"at": event.get("at", _now()), "message": event["message"]})
+            existing = self._packets.get(event["id"])
+            if existing is not None:
+                existing.log.append({"at": event.get("at", _now()), "message": event["message"]})
         elif kind == "close":
-            packet = self._packets.get(event["id"])
-            if packet is not None:
-                packet.closed_at = event.get("closed_at", _now())
-                packet.status = STATUS_CLOSED
-                packet.outcome = event.get("outcome")
+            existing = self._packets.get(event["id"])
+            if existing is not None:
+                existing.closed_at = event.get("closed_at", _now())
+                existing.status = STATUS_CLOSED
+                existing.outcome = event.get("outcome")
 
     def _append(self, event: dict) -> None:
         with self.path.open("a", encoding="utf-8") as fh:
@@ -291,10 +291,10 @@ class PacketStore:
             raise PacketNotFoundError(f"no packet with id '{packet_id}'")
         return packet
 
-    def get(self, packet_id: str) -> Optional[ChangePacket]:
+    def get(self, packet_id: str) -> ChangePacket | None:
         return self._packets.get(packet_id)
 
-    def find_locking_packet(self, site: str, target: str) -> Optional[ChangePacket]:
+    def find_locking_packet(self, site: str, target: str) -> ChangePacket | None:
         """Return an open, non-expired packet whose lock overlaps site+target, if any."""
         ttl = lock_ttl_seconds()
         for packet in self._packets.values():
@@ -306,7 +306,7 @@ class PacketStore:
                 return packet
         return None
 
-    def get_open_packet(self, site: str) -> Optional[ChangePacket]:
+    def get_open_packet(self, site: str) -> ChangePacket | None:
         """Return the most recently opened, still-open packet for `site`, if any.
 
         Note: "open" here means not-yet-closed regardless of approval state.
@@ -317,7 +317,7 @@ class PacketStore:
             return None
         return max(candidates, key=lambda p: p.opened_at)
 
-    def get_approved_open_packet(self, site: str) -> Optional[ChangePacket]:
+    def get_approved_open_packet(self, site: str) -> ChangePacket | None:
         """Return the most recently opened, still-open, *approved* packet for `site`."""
         candidates = [p for p in self._packets.values() if p.site == site and p.is_approved]
         if not candidates:
@@ -326,9 +326,9 @@ class PacketStore:
 
     def list_packets(
         self,
-        site: Optional[str] = None,
+        site: str | None = None,
         open_only: bool = False,
-        status: Optional[str] = None,
+        status: str | None = None,
     ) -> list[ChangePacket]:
         packets = list(self._packets.values())
         if site is not None:
@@ -407,7 +407,7 @@ class Snapshot:
     # packet_close): a [kind, *args] spec, e.g. ["option", "blogname"] or
     # ["post_meta", 12, "_thumbnail_id"] or ["post_content", 12]. None means
     # "no clean re-read available" (e.g. raw wp_eval).
-    reread: Optional[list] = None
+    reread: list | None = None
     taken_at: str = field(default_factory=_now)
 
     def to_dict(self) -> dict:
@@ -429,7 +429,7 @@ class SnapshotStore:
         target: str,
         previous_value: Any,
         new_value: Any = None,
-        reread: Optional[list] = None,
+        reread: list | None = None,
     ) -> Snapshot:
         snapshot = Snapshot(
             id=uuid.uuid4().hex[:12],

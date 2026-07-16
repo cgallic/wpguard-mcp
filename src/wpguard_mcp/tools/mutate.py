@@ -240,7 +240,8 @@ def wp_mutate_post_content(
         )
         ssh_wpcli.run_wp_cli(site_config, ["post", "update", str(post_id), f"--post_content={proposed_content}"])
         get_packet_store().log(
-            packet.id, f"applied wp_mutate_post_content(post {post_id}, {match_count} matches) -- snapshot {snapshot.id}"
+            packet.id,
+            f"applied wp_mutate_post_content(post {post_id}, {match_count} matches) -- snapshot {snapshot.id}",
         )
         return {
             "site": site,
@@ -277,7 +278,7 @@ def wp_mutate_post_content(
 
     _check_etag(expected_etag, previous_content)
     packet = require_approved_packet(get_packet_store(), site)
-    proposed_content = (
+    companion_new_content = (
         previous_content.replace(search, replace) if isinstance(previous_content, str) else None
     )
     snapshot = get_snapshot_store().record(
@@ -286,7 +287,7 @@ def wp_mutate_post_content(
         tool="wp_mutate_post_content",
         target=f"post:{post_id}:content",
         previous_value=previous_content,
-        new_value=proposed_content,
+        new_value=companion_new_content,
         reread=["post_content", post_id],
     )
     result = companion_plugin.call(
