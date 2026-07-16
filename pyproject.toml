@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wpguard-mcp"
+version = "0.1.0"
+description = "MCP server that lets AI clients safely recon, mutate, and verify WordPress sites through guarded named verbs instead of raw PHP/eval."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Connor Gallic" }]
+requires-python = ">=3.10"
+keywords = ["mcp", "wordpress", "wp-cli", "model-context-protocol", "ai-agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "mcp>=1.2.0",
+    "httpx>=0.27.0",
+    "uvicorn>=0.30.0",
+    "starlette>=0.37.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+wpguard-mcp = "wpguard_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/cgallic/wpguard-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wpguard_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

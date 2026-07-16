@@ -1,0 +1,31 @@
+# --- Secrets ---
+.env
+*.pem
+*.key
+
+# --- wpguard-mcp local state (packet ledger, snapshots, site registry) ---
+state/
+packets/
+config/*.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
