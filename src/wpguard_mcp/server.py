@@ -57,6 +57,7 @@ mcp.tool()(mutate.wp_eval)
 
 # --- Packet lifecycle + site registry ---
 mcp.tool()(packets.packet_open)
+mcp.tool()(packets.packet_approve)
 mcp.tool()(packets.packet_log)
 mcp.tool()(packets.packet_close)
 mcp.tool()(packets.packet_list)

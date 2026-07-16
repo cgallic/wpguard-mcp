@@ -85,8 +85,10 @@ def test_get_open_packet_ignores_closed_packets(store):
 
 
 def test_get_open_packet_returns_most_recent_open_packet(store):
-    store.open_packet(site="example.com", summary="first", risk="low")
-    second = store.open_packet(site="example.com", summary="second", risk="medium")
+    # Distinct targets so both packets can be open at once (a whole-site lock
+    # would otherwise refuse the second open).
+    store.open_packet(site="example.com", summary="first", risk="low", target="option:a")
+    second = store.open_packet(site="example.com", summary="second", risk="medium", target="option:b")
 
     found = store.get_open_packet("example.com")
 
@@ -102,13 +104,24 @@ def test_require_open_packet_blocks_when_no_packet_open(store, monkeypatch):
         require_open_packet(store, "example.com")
 
 
-def test_require_open_packet_allows_when_matching_packet_open(store):
+def test_require_open_packet_blocks_proposed_but_unapproved_packet(store, monkeypatch):
+    monkeypatch.delenv("WPGUARD_BYPASS_GUARD", raising=False)
+    store.open_packet(site="example.com", summary="testing", risk="low")
+
+    # An open-but-unapproved packet does NOT satisfy the guard.
+    with pytest.raises(PacketRequiredError):
+        require_open_packet(store, "example.com")
+
+
+def test_require_open_packet_allows_when_matching_packet_approved(store):
     packet = store.open_packet(site="example.com", summary="testing", risk="low")
+    store.approve_packet(packet.id, approver="tester")
 
     guarding_packet = require_open_packet(store, "example.com")
 
     assert guarding_packet.id == packet.id
     assert guarding_packet.is_open is True
+    assert guarding_packet.is_approved is True
 
 
 def test_require_open_packet_does_not_match_a_different_site(store, monkeypatch):
@@ -151,8 +164,8 @@ def test_packet_store_persists_across_instances(tmp_path):
 
 
 def test_list_packets_filters_by_site_and_open_only(store):
-    p1 = store.open_packet(site="a.com", summary="a-open", risk="low")
-    p2 = store.open_packet(site="a.com", summary="a-closed", risk="low")
+    p1 = store.open_packet(site="a.com", summary="a-open", risk="low", target="option:x")
+    p2 = store.open_packet(site="a.com", summary="a-closed", risk="low", target="option:y")
     store.close_packet(p2.id)
     store.open_packet(site="b.com", summary="b-open", risk="low")
 
