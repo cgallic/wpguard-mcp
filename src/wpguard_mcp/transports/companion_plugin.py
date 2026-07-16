@@ -11,7 +11,7 @@ instead.
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -31,7 +31,7 @@ ALLOWED_COMMANDS = {
 
 
 class CompanionPluginError(RuntimeError):
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
 
@@ -48,7 +48,7 @@ def _resolve_api_key(site: SiteConfig) -> str:
     return key
 
 
-def call(site: SiteConfig, command: str, args: Optional[dict[str, Any]] = None, timeout: float = 30.0) -> Any:
+def call(site: SiteConfig, command: str, args: dict[str, Any] | None = None, timeout: float = 30.0) -> Any:
     """POST a whitelisted command to the companion plugin's REST route."""
     if command not in ALLOWED_COMMANDS:
         raise ValueError(f"'{command}' is not an allowed companion-plugin command")

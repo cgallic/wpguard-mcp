@@ -1,7 +1,15 @@
-"""Tier 1 tools: read-only recon and lookups. No change packet required."""
+"""Tier 1 tools: read-only recon and lookups. No change packet required.
+
+Recon output is content of unknown provenance flowing back into the calling
+model, so every value a caller might treat as text is wrapped in an
+untrusted-content envelope and scanned for instruction-like phrasing (see
+recon_safety and issue #9). Recon stays unguarded -- the envelope is the
+mitigation, not a block.
+"""
 from __future__ import annotations
 
 from ..config import get_site_registry
+from ..recon_safety import looks_like_injection, wrap_untrusted
 from ..transports import companion_plugin, ssh_wpcli
 
 
@@ -18,7 +26,7 @@ def wp_recon(site: str) -> dict:
         plugins = ssh_wpcli.run_wp_cli_json(site_config, ["plugin", "list"])
         themes = ssh_wpcli.run_wp_cli_json(site_config, ["theme", "list"])
         site_url = ssh_wpcli.run_wp_cli(site_config, ["option", "get", "siteurl"]).stdout.strip()
-        return {
+        payload = {
             "site": site,
             "transport": "ssh",
             "core_version": core_version,
@@ -26,9 +34,14 @@ def wp_recon(site: str) -> dict:
             "themes": themes,
             "site_url": site_url,
         }
+    else:
+        result = companion_plugin.call(site_config, "recon")
+        payload = {"site": site, "transport": "companion_plugin", **(result or {})}
 
-    result = companion_plugin.call(site_config, "recon")
-    return {"site": site, "transport": "companion_plugin", **(result or {})}
+    # Plugin/theme names and the like come from the site; flag if any of it
+    # reads like an injection attempt so the caller can review before acting.
+    payload["_wpguard"] = {"injection_flagged": looks_like_injection(payload)}
+    return payload
 
 
 def wp_get_option(site: str, option_name: str) -> dict:
@@ -41,7 +54,7 @@ def wp_get_option(site: str, option_name: str) -> dict:
     else:
         value = companion_plugin.call(site_config, "get_option", {"option_name": option_name})
 
-    return {"site": site, "option_name": option_name, "value": value}
+    return {"site": site, "option_name": option_name, "value": wrap_untrusted(value, field=option_name)}
 
 
 def wp_get_post_meta(site: str, post_id: int, meta_key: str) -> dict:
@@ -58,7 +71,12 @@ def wp_get_post_meta(site: str, post_id: int, meta_key: str) -> dict:
             site_config, "get_post_meta", {"post_id": post_id, "meta_key": meta_key}
         )
 
-    return {"site": site, "post_id": post_id, "meta_key": meta_key, "value": value}
+    return {
+        "site": site,
+        "post_id": post_id,
+        "meta_key": meta_key,
+        "value": wrap_untrusted(value, field=f"post:{post_id}:{meta_key}"),
+    }
 
 
 def site_list() -> list[dict]:

@@ -31,10 +31,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.10.0",
 ]
 
 [project.scripts]
 wpguard-mcp = "wpguard_mcp.server:main"
+wpguard = "wpguard_mcp.audit:main"
 
 [project.urls]
 Homepage = "https://github.com/cgallic/wpguard-mcp"
@@ -44,3 +47,24 @@ packages = ["src/wpguard_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B008: FastMCP registers tools by calling mcp.tool() at import time; not a
+# default-arg trap here.
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+ignore_missing_imports = true
+# Pragmatic, not strict: catch real type errors without demanding full
+# annotations across a young codebase.
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true

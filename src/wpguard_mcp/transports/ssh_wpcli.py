@@ -57,8 +57,9 @@ def run_wp_cli(site: SiteConfig, args: list[str], timeout: int = 60) -> CommandR
     one and the caller hasn't already passed --path themselves.
     """
     parts = ["wp"] + [shlex.quote(a) for a in args]
-    if site.wp_path and not any(a.startswith("--path=") for a in args):
-        parts.append(f"--path={shlex.quote(site.wp_path)}")
+    wp_path = site.effective_wp_path()
+    if wp_path and not any(a.startswith("--path=") for a in args):
+        parts.append(f"--path={shlex.quote(wp_path)}")
     remote_command = " ".join(parts)
     ssh_cmd = _build_ssh_command(site, remote_command)
     proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=timeout)

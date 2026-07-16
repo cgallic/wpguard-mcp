@@ -14,14 +14,12 @@ or, once installed:
 """
 from __future__ import annotations
 
+import json
 import os
 
 from mcp.server.fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
-from . import auth
+from . import policy
 from .tools import mutate, packets, recon
 
 DEFAULT_HOST = "127.0.0.1"
@@ -57,40 +55,86 @@ mcp.tool()(mutate.wp_eval)
 
 # --- Packet lifecycle + site registry ---
 mcp.tool()(packets.packet_open)
+mcp.tool()(packets.packet_approve)
 mcp.tool()(packets.packet_log)
 mcp.tool()(packets.packet_close)
 mcp.tool()(packets.packet_list)
 mcp.tool()(packets.site_register)
 
 
-class BearerAuthMiddleware(BaseHTTPMiddleware):
-    """Rejects every request that doesn't carry the configured bearer token.
+class PolicyMiddleware:
+    """Pure-ASGI middleware enforcing auth, token scope, and rate limits.
 
-    Applied ahead of every route on the app, including MCP protocol
-    endpoints -- there is no unauthenticated health-check or discovery route
-    in v1. Fails closed: a misconfigured (missing-token) server returns 500
-    on every request rather than accepting unauthenticated traffic.
+    Applied ahead of every route, including MCP protocol endpoints -- there is
+    no unauthenticated health-check or discovery route in v1. It buffers the
+    request body (so it can see which tool a `tools/call` targets), asks
+    `policy.evaluate_request` for a decision, and either short-circuits with a
+    401/403/429 or replays the buffered body downstream unchanged.
+
+    Fails closed: a request with no valid token is rejected, and the server
+    refuses to build at all if no tokens are configured.
     """
 
-    async def dispatch(self, request: Request, call_next):
-        header = request.headers.get("authorization")
-        try:
-            authorized = auth.check_bearer_token(header)
-        except auth.AuthError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=500)
-        if not authorized:
-            return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return await call_next(request)
+    def __init__(self, app):
+        self.app = app
+        self.rate_limiter = policy.RateLimiter()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Buffer the whole request body so we can inspect the tool call and
+        # still replay the bytes to the downstream app.
+        messages = []
+        while True:
+            message = await receive()
+            messages.append(message)
+            if not message.get("more_body", False):
+                break
+        body = b"".join(m.get("body", b"") for m in messages)
+
+        headers = {k.lower(): v for k, v in scope.get("headers", [])}
+        auth_header = headers.get(b"authorization", b"").decode("latin-1") or None
+
+        decision = policy.evaluate_request(auth_header, body, self.rate_limiter)
+        if not decision.ok:
+            await self._send_json(send, decision.status, {"error": decision.message})
+            return
+
+        replay = iter(messages)
+
+        async def replay_receive():
+            try:
+                return next(replay)
+            except StopIteration:
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+        await self.app(scope, replay_receive, send)
+
+    @staticmethod
+    async def _send_json(send, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode("latin-1")),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
 
 
 def build_app():
-    """Build the ASGI app: FastMCP's streamable-HTTP app wrapped in bearer auth."""
+    """Build the ASGI app: FastMCP's streamable-HTTP app wrapped in policy auth."""
     # Fail closed at build/import time too, not just per-request, so a
-    # misconfigured deployment doesn't silently start listening at all.
-    auth.get_expected_token()
+    # misconfigured deployment (no tokens) doesn't silently start listening.
+    policy.require_configured()
     app = mcp.streamable_http_app()
-    app.add_middleware(BearerAuthMiddleware)
-    return app
+    return PolicyMiddleware(app)
 
 
 def main() -> None:

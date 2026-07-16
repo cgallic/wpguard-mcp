@@ -15,12 +15,12 @@ import os
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 STATE_DIR = Path(os.environ.get("WPGUARD_STATE_DIR", "state"))
 DEFAULT_CONFIG_PATH = STATE_DIR / "config" / "sites.json"
 
 VALID_TRANSPORTS = ("ssh", "companion_plugin")
+VALID_LAYOUTS = ("classic", "bedrock")
 
 
 class SiteNotFoundError(RuntimeError):
@@ -41,15 +41,19 @@ class SiteConfig:
     transport: str  # "ssh" or "companion_plugin"
 
     # --- ssh transport fields ---
-    ssh_host: Optional[str] = None
-    ssh_user: Optional[str] = None
+    ssh_host: str | None = None
+    ssh_user: str | None = None
     ssh_port: int = 22
-    ssh_key_path: Optional[str] = None
-    wp_path: Optional[str] = None  # remote path to the WP install, passed as wp-cli --path
+    ssh_key_path: str | None = None
+    wp_path: str | None = None  # remote path to the WP project root, passed as wp-cli --path
+    # Docroot layout: "classic" (WP core at wp_path) or "bedrock" (Composer/
+    # Bedrock -- core lives under <wp_path>/web/wp, config split out of
+    # wp-config.php). Determines the effective --path wp-cli is given.
+    layout: str = "classic"
 
     # --- companion_plugin transport fields ---
-    plugin_url: Optional[str] = None  # e.g. https://example.com/wp-json/wpguard/v1/exec
-    plugin_api_key_env: Optional[str] = None  # name of the env var holding the plugin API key
+    plugin_url: str | None = None  # e.g. https://example.com/wp-json/wpguard/v1/exec
+    plugin_api_key_env: str | None = None  # name of the env var holding the plugin API key
 
     notes: str = ""
 
@@ -58,12 +62,29 @@ class SiteConfig:
             raise InvalidSiteConfigError(
                 f"transport must be one of {VALID_TRANSPORTS}, got '{self.transport}'"
             )
+        if self.layout not in VALID_LAYOUTS:
+            raise InvalidSiteConfigError(
+                f"layout must be one of {VALID_LAYOUTS}, got '{self.layout}'"
+            )
         if self.transport == "ssh" and not self.ssh_host:
             raise InvalidSiteConfigError("ssh transport requires ssh_host")
         if self.transport == "companion_plugin" and not (self.plugin_url and self.plugin_api_key_env):
             raise InvalidSiteConfigError(
                 "companion_plugin transport requires plugin_url and plugin_api_key_env"
             )
+
+    def effective_wp_path(self) -> str | None:
+        """The path wp-cli should be pointed at via --path.
+
+        For a classic layout that's just `wp_path`. For a Bedrock/Composer
+        install the WordPress core files live under `web/wp`, so wp-cli needs
+        the path to that subdirectory, not the project root.
+        """
+        if self.wp_path is None:
+            return None
+        if self.layout == "bedrock":
+            return self.wp_path.rstrip("/") + "/web/wp"
+        return self.wp_path
 
     def to_dict(self) -> dict:
         return asdict(self)
