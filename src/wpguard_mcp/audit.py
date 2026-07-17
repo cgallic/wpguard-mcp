@@ -21,6 +21,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
+from .cloud import pair_instance, poll_decisions
 from .guard import PacketStore, SnapshotStore, get_packet_store, get_snapshot_store
 
 _SINCE_RE = re.compile(r"^(\d+)\s*([dhms])$")
@@ -113,6 +114,15 @@ def main(argv: list | None = None) -> int:
     )
     audit_p.add_argument("--json", action="store_true", help="Emit JSON instead of a text timeline")
 
+    cloud_p = sub.add_parser("cloud", help="Pair and poll WP MCP Cloud")
+    cloud_sub = cloud_p.add_subparsers(dest="cloud_command", required=True)
+    pair_p = cloud_sub.add_parser("pair", help="Pair this local instance with Cloud")
+    pair_p.add_argument("--code", required=True, help="One-time pairing code from Cloud")
+    pair_p.add_argument("--name", required=True, help="Human-readable instance name")
+    pair_p.add_argument("--url", default=None, help="Cloud base URL (defaults to WPGUARD_CLOUD_URL)")
+    poll_p = cloud_sub.add_parser("poll", help="Poll and apply pending Cloud decisions")
+    poll_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+
     args = parser.parse_args(argv)
 
     if args.command == "audit":
@@ -128,6 +138,26 @@ def main(argv: list | None = None) -> int:
             print(json.dumps(report, indent=2))
         else:
             print(render_text(report), end="")
+        return 0
+    if args.command == "cloud" and args.cloud_command == "pair":
+        config = pair_instance(args.code, args.name, url=args.url)
+        print(
+            f"Paired {config.instance_name} as {config.instance_id}. "
+            "Credentials stay in local state/config/cloud.json."
+        )
+        return 0
+    if args.command == "cloud" and args.cloud_command == "poll":
+        results = poll_decisions()
+        if args.json:
+            print(json.dumps(results, indent=2))
+        elif not results:
+            print("No pending Cloud decisions.")
+        else:
+            for result in results:
+                print(
+                    f"{result.get('decision', '?').upper()} "
+                    f"{result.get('localPacketId', '?')} by {result.get('approver', '?')}"
+                )
         return 0
     return 1
 
