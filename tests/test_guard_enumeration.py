@@ -29,7 +29,7 @@ def test_every_guarded_tool_is_covered_by_apply_kwargs():
 def test_guarded_tool_calls_shared_gate(tool_name, wired, monkeypatch):
     calls = []
 
-    def spy(store, site):
+    def spy(store, site, **kwargs):
         calls.append((tool_name, site))
         raise PacketRequiredError("gate hit (spy)")
 

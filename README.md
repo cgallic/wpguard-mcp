@@ -171,14 +171,14 @@ A token calling above its scope gets a clear `403`; hammering the server past th
 | 2 | `wp_mutate_post_content` | yes | yes | Search/replace within one post's content. Dry-run reports match count. |
 | 2 | `wp_cache_bust` | **no** | — | Flush cache. Not guarded — no content change to roll back. |
 | 3 | `wp_eval` | yes | yes | Run arbitrary PHP via `wp eval`. **SSH + admin only.** Escape hatch. |
-| — | `packet_open` | — | — | **Propose** a change packet: `{site, summary, risk, target}`. |
+| — | `packet_open` | — | — | **Propose** a change packet bound to `{site, verb, target, change_digest}`. |
 | — | `packet_approve` | — | — | **Authorize** a proposed packet. Only approved packets satisfy the guard. |
 | — | `packet_log` | — | — | Append a note to an open packet. |
 | — | `packet_close` | — | — | Close a packet; optional durable re-verify. |
 | — | `packet_list` | — | — | List packets by site / open / status. |
 | — | `site_register` | — | — | Register a site's SSH or companion-plugin connection info. |
 
-"Guarded" means: `apply=True` raises `PacketRequiredError` unless there's an **approved**, currently-open packet for that exact site (or `WPGUARD_BYPASS_GUARD=1` is set).
+"Guarded" means: `apply=True` raises `PacketRequiredError` unless there's an **approved**, currently-open packet for that exact site, target, mutation payload, and pre-change state (or `WPGUARD_BYPASS_GUARD=1` is set). Legacy packets without a digest remain supported during the alpha transition.
 
 ## The guarded-change lifecycle
 
@@ -189,23 +189,24 @@ This is the shape every real mutation takes, end to end — a **dry-run WordPres
 2. wp_recon(site="example-blog")
      -> confirms the site, WP version, active plugins, before touching anything
 
-3. packet_open(site="example-blog", summary="Update tagline for spring promo",
-                risk="low", target="option:blogdescription")
+3. wp_mutate_option(site="example-blog", option_name="blogdescription",
+                     new_value="Spring Sale — 20% off everything")
+     -> apply defaults to False: dry-run, returns
+        {previous_value, proposed_value, etag, change_digest}, no write
+
+4. packet_open(site="example-blog", summary="Update tagline for spring promo",
+                risk="low", target="option:blogdescription",
+                verb="wp_mutate_option", change_digest="<digest from step 3>")
      -> returns {id: "a1b2c3d4e5f6", status: "proposed", ...}
         and takes a lock on that target so another agent can't race it
 
-4. packet_approve(packet_id="a1b2c3d4e5f6", approver="connor")
+5. packet_approve(packet_id="a1b2c3d4e5f6", approver="connor")
      -> status: "approved" -- the proposer and the approver can be different actors
 
-5. wp_mutate_option(site="example-blog", option_name="blogdescription",
-                     new_value="Spring Sale — 20% off everything")
-     -> apply defaults to False: dry-run, returns {previous_value, proposed_value, etag}, no write
-
-   # review the diff, decide it's correct
-
 6. wp_mutate_option(..., new_value="Spring Sale — 20% off everything",
-                     apply=True, expected_etag="<etag from step 5>")
-     -> requires the approved packet; refuses if the value changed since the dry-run;
+                     apply=True, expected_etag="<etag from step 3>")
+     -> requires the packet approved for this exact payload and pre-change state;
+        refuses if either the requested change or live value differs from the preview;
         snapshots the previous value first (backup-before-write), then writes
 
 7. wp_get_option(site="example-blog", option_name="blogdescription")
@@ -221,6 +222,7 @@ If step 6 is attempted without an *approved* packet, it fails immediately with `
 ### Safety mechanics, briefly
 
 - **Propose vs. approve ([#1][i1]).** `packet_open` only proposes; `packet_approve` authorizes. Every Tier 2/3 tool funnels through one shared guard, and a test enumerates all guarded tools to prove none can skip it.
+- **Exact-change binding.** Every dry-run returns a SHA-256 `change_digest` over the site, verb, target, full normalized mutation payload, and current-value ETag. A digest-bound approval cannot be reused for different values, code, targets, or stale state.
 - **Per-target locks ([#3][i3]).** An open packet locks its `site:target`; a second packet on an overlapping target fails fast instead of racing. Locks auto-expire.
 - **Optimistic concurrency ([#6][i6]).** Pass the dry-run's `etag` back as `expected_etag` to refuse a **rollback-safe** overwrite of a value that changed underneath you.
 - **Durable re-verify ([#2][i2]).** `packet_close(durable_check_delay_seconds=...)` re-reads mutated values after a delay and flags drift (a cache serving stale content, a plugin rewriting the field).

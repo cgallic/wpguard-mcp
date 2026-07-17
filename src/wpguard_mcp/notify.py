@@ -115,7 +115,9 @@ def _cloud_payload(event: str, packet: dict) -> dict:
         "risk": packet.get("risk"),
         "opened_at": packet.get("opened_at"),
     }
-    digest = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = packet.get("change_digest") or hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     event_map = {
         "packet_proposed": "packet.proposed",
         "packet_approved": "packet.executing",
@@ -132,7 +134,7 @@ def _cloud_payload(event: str, packet: dict) -> dict:
         "siteName": packet.get("site"),
         "environment": "production",
         "transport": "local",
-        "verb": "change_packet",
+        "verb": packet.get("verb") or "change_packet",
         "requestedBy": packet.get("requested_by") or "local-agent",
         "preview": None,
         # Legacy snake_case fields remain during the v0.1 contract transition.

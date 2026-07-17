@@ -36,6 +36,7 @@ database.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import uuid
@@ -94,6 +95,30 @@ class ConflictError(RuntimeError):
         self.actual_etag = actual_etag
 
 
+def build_change_digest(
+    site: str,
+    verb: str,
+    target: str,
+    current_etag: str | None,
+    payload: dict,
+) -> str:
+    """Hash the exact normalized mutation intent shown by a dry run.
+
+    The digest binds approval to the site, verb, target, pre-change ETag, and
+    proposed arguments. Any change to one of those fields produces a different
+    digest and therefore cannot reuse the prior approval.
+    """
+    canonical = {
+        "site": site,
+        "verb": verb,
+        "target": target,
+        "current_etag": current_etag,
+        "payload": payload,
+    }
+    encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -132,6 +157,8 @@ class ChangePacket:
     summary: str
     risk: str = "low"
     target: str = WILDCARD_TARGET
+    verb: str | None = None
+    change_digest: str | None = None
     status: str = STATUS_PROPOSED
     approver: str | None = None
     opened_at: str = field(default_factory=_now)
@@ -201,6 +228,8 @@ class PacketStore:
                 summary=event["summary"],
                 risk=event.get("risk", "low"),
                 target=event.get("target", WILDCARD_TARGET),
+                verb=event.get("verb"),
+                change_digest=event.get("change_digest"),
                 status=STATUS_PROPOSED,
                 opened_at=event.get("opened_at", _now()),
             )
@@ -233,6 +262,8 @@ class PacketStore:
         summary: str,
         risk: str = "low",
         target: str = WILDCARD_TARGET,
+        verb: str | None = None,
+        change_digest: str | None = None,
     ) -> ChangePacket:
         """Open (propose) a packet, taking a per-target lock.
 
@@ -255,6 +286,8 @@ class PacketStore:
                 "summary": summary,
                 "risk": risk,
                 "target": target,
+                "verb": verb,
+                "change_digest": change_digest,
                 "opened_at": _now(),
             }
         )
@@ -344,7 +377,12 @@ def bypass_enabled() -> bool:
     return os.environ.get(BYPASS_ENV_VAR, "").strip().lower() in ("1", "true", "yes")
 
 
-def require_approved_packet(store: PacketStore, site: str) -> ChangePacket:
+def require_approved_packet(
+    store: PacketStore,
+    site: str,
+    target: str | None = None,
+    change_digest: str | None = None,
+) -> ChangePacket:
     """The single shared guard gate for every Tier 2/3 write.
 
     Raises PacketRequiredError unless an *approved*, still-open packet exists
@@ -359,6 +397,16 @@ def require_approved_packet(store: PacketStore, site: str) -> ChangePacket:
     """
     packet = store.get_approved_open_packet(site)
     if packet is not None:
+        if target is not None and not _targets_overlap(packet.target, target):
+            raise PacketRequiredError(
+                f"approved packet {packet.id} targets '{packet.target}', not '{target}'. "
+                "Open and approve a packet for the exact mutation target."
+            )
+        if packet.change_digest is not None and packet.change_digest != change_digest:
+            raise PacketRequiredError(
+                f"approved packet {packet.id} is bound to a different change digest. "
+                "The payload or pre-change state differs from the reviewed dry run; re-preview and re-approve."
+            )
         return packet
     if bypass_enabled():
         return ChangePacket(
