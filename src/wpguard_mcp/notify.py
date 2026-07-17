@@ -31,9 +31,12 @@ it is a dumb, optional POST.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import threading
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -99,14 +102,40 @@ def _notify_events() -> set:
 
 
 def _cloud_payload(event: str, packet: dict) -> dict:
-    """The public event contract wpguard-cloud consumes. Metadata only."""
+    """The public event contract WP MCP Cloud consumes. Metadata only."""
     snapshot_meta = None
     if "durable_check" in packet:
         dc = packet["durable_check"]
         snapshot_meta = {"durable": dc.get("durable"), "checks": len(dc.get("checks", []))}
+    canonical = {
+        "packet_id": packet.get("id"),
+        "site": packet.get("site"),
+        "target": packet.get("target"),
+        "summary": packet.get("summary"),
+        "risk": packet.get("risk"),
+        "opened_at": packet.get("opened_at"),
+    }
+    digest = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    event_map = {
+        "packet_proposed": "packet.proposed",
+        "packet_approved": "packet.executing",
+        "packet_closed": "packet.closed",
+        "packet_verify_failed": "packet.verify_failed",
+        "tier3_eval_fired": "packet.executed",
+    }
     return {
-        "event": event,
+        "eventId": uuid.uuid4().hex,
+        "type": event_map.get(event, event.replace("_", ".")),
+        "packetId": packet.get("id"),
+        "digest": digest,
         "timestamp": _now(),
+        "siteName": packet.get("site"),
+        "environment": "production",
+        "transport": "local",
+        "verb": "change_packet",
+        "requestedBy": packet.get("requested_by") or "local-agent",
+        "preview": None,
+        # Legacy snake_case fields remain during the v0.1 contract transition.
         "packet_id": packet.get("id"),
         "site": packet.get("site"),
         "target": packet.get("target"),
@@ -147,9 +176,20 @@ def _build_deliveries(event: str, packet: dict) -> list:
     deliveries: list[Delivery] = []
 
     cloud_url = os.environ.get(CLOUD_URL_ENV, "").strip()
+    if not cloud_url:
+        try:
+            from .cloud import load_cloud_config
+
+            cloud_config = load_cloud_config()
+            if cloud_config:
+                cloud_url = f"{cloud_config.url}/api/v1/events"
+        except Exception:
+            cloud_config = None
     if cloud_url and event in LIFECYCLE_EVENTS:
         headers = {"Content-Type": "application/json"}
         key = os.environ.get(CLOUD_KEY_ENV, "").strip()
+        if not key and "cloud_config" in locals() and cloud_config:
+            key = cloud_config.token
         if key:
             headers["Authorization"] = f"Bearer {key}"
         deliveries.append(Delivery(url=cloud_url, payload=_cloud_payload(event, packet), headers=headers))

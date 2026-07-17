@@ -54,7 +54,8 @@ def test_cloud_hook_reports_lifecycle_event(captured, monkeypatch):
     assert d.headers["Authorization"] == "Bearer secret-key"
     assert d.payload["packet_id"] == "abc123"
     assert d.payload["site"] == "example.com"
-    assert d.payload["event"] == "packet_proposed"
+    assert d.payload["type"] == "packet.proposed"
+    assert len(d.payload["digest"]) == 64
     # Metadata only -- never full content / credentials.
     assert "previous_value" not in d.payload
     assert "untrusted_content" not in d.payload
