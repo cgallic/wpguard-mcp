@@ -69,6 +69,39 @@ def test_matching_etag_allows_apply(wired):
     assert result["applied"] is True
 
 
+def test_exact_change_packet_allows_only_previewed_payload(wired):
+    state = wired["state"]
+    state["values"][("option", "blogname")] = "old"
+    preview = mutate.wp_mutate_option(site="example", option_name="blogname", new_value="approved")
+
+    packet = packets.packet_open(
+        site="example",
+        summary="rename",
+        target="option:blogname",
+        verb="wp_mutate_option",
+        change_digest=preview["change_digest"],
+    )
+    packets.packet_approve(packet_id=packet["id"], approver="alice")
+
+    with pytest.raises(PacketRequiredError, match="bound to a different change digest"):
+        mutate.wp_mutate_option(
+            site="example",
+            option_name="blogname",
+            new_value="different",
+            apply=True,
+            expected_etag=preview["etag"],
+        )
+
+    result = mutate.wp_mutate_option(
+        site="example",
+        option_name="blogname",
+        new_value="approved",
+        apply=True,
+        expected_etag=preview["etag"],
+    )
+    assert result["applied"] is True
+
+
 def test_durable_check_passes_when_value_sticks(wired):
     state = wired["state"]
     state["values"][("option", "blogname")] = "old"
@@ -101,7 +134,14 @@ def test_durable_check_fails_when_value_reverts(wired):
 
 def test_eval_fires_and_is_ssh_gated(wired):
     state = wired["state"]
-    packet = packets.packet_open(site="example", summary="raw fix", target="raw")
+    preview = mutate.wp_eval(site="example", php_code="echo 1;")
+    packet = packets.packet_open(
+        site="example",
+        summary="raw fix",
+        target="raw_php_eval",
+        verb="wp_eval",
+        change_digest=preview["change_digest"],
+    )
     packets.packet_approve(packet_id=packet["id"], approver="alice")
 
     result = mutate.wp_eval(site="example", php_code="echo 1;", apply=True)

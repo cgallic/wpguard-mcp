@@ -163,6 +163,24 @@ def test_packet_store_persists_across_instances(tmp_path):
     assert reloaded.log[0]["message"] == "note before reload"
 
 
+def test_packet_store_persists_exact_change_binding(tmp_path):
+    path = tmp_path / "packets.jsonl"
+    store_a = PacketStore(path=path)
+    packet = store_a.open_packet(
+        site="example.com",
+        summary="bound change",
+        target="option:blogname",
+        verb="wp_mutate_option",
+        change_digest="abc123",
+    )
+
+    reloaded = PacketStore(path=path).get(packet.id)
+
+    assert reloaded is not None
+    assert reloaded.verb == "wp_mutate_option"
+    assert reloaded.change_digest == "abc123"
+
+
 def test_list_packets_filters_by_site_and_open_only(store):
     p1 = store.open_packet(site="a.com", summary="a-open", risk="low", target="option:x")
     p2 = store.open_packet(site="a.com", summary="a-closed", risk="low", target="option:y")

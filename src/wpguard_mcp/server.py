@@ -30,8 +30,9 @@ mcp = FastMCP(
     instructions=(
         "Safely recon, mutate, and verify WordPress sites through named, guarded verbs "
         "instead of raw PHP/eval. Mutations require an open change packet (packet_open) "
-        "before apply=True will run. Typical flow: site_register -> wp_recon -> packet_open "
-        "-> mutate tool with apply=False (dry-run, the default) -> review the preview -> "
+        "before apply=True will run. Typical flow: site_register -> wp_recon -> "
+        "mutate tool with apply=False (dry-run, the default) -> packet_open with its change_digest -> "
+        "review and approve the exact preview -> "
         "mutate tool again with apply=True -> verify with a Tier 1 read -> packet_close."
     ),
     host=os.environ.get("WPGUARD_MCP_HOST", DEFAULT_HOST),

@@ -27,6 +27,7 @@ import hashlib
 from ..config import get_site_registry
 from ..guard import (
     ConflictError,
+    build_change_digest,
     get_packet_store,
     get_snapshot_store,
     require_approved_packet,
@@ -56,6 +57,16 @@ def _check_etag(expected_etag: str | None, current_value) -> str:
     return actual
 
 
+def _change_digest(site: str, verb: str, target: str, current_etag: str | None, payload: dict) -> str:
+    return build_change_digest(
+        site=site,
+        verb=verb,
+        target=target,
+        current_etag=current_etag,
+        payload=payload,
+    )
+
+
 def wp_mutate_option(
     site: str,
     option_name: str,
@@ -78,6 +89,10 @@ def wp_mutate_option(
     else:
         previous_value = companion_plugin.call(site_config, "get_option", {"option_name": option_name})
 
+    target = f"option:{option_name}"
+    payload = {"option_name": option_name, "new_value": new_value}
+    current_etag = _etag(previous_value)
+    change_digest = _change_digest(site, "wp_mutate_option", target, current_etag, payload)
     if not apply:
         return {
             "site": site,
@@ -86,16 +101,19 @@ def wp_mutate_option(
             "option_name": option_name,
             "previous_value": previous_value,
             "proposed_value": new_value,
-            "etag": _etag(previous_value),
+            "etag": current_etag,
+            "change_digest": change_digest,
         }
 
     _check_etag(expected_etag, previous_value)
-    packet = require_approved_packet(get_packet_store(), site)
+    packet = require_approved_packet(
+        get_packet_store(), site, target=target, change_digest=change_digest
+    )
     snapshot = get_snapshot_store().record(
         packet_id=packet.id,
         site=site,
         tool="wp_mutate_option",
-        target=option_name,
+        target=target,
         previous_value=previous_value,
         new_value=new_value,
         reread=["option", option_name],
@@ -142,6 +160,10 @@ def wp_mutate_post_meta(
             site_config, "get_post_meta", {"post_id": post_id, "meta_key": meta_key}
         )
 
+    target = f"post:{post_id}:{meta_key}"
+    payload = {"post_id": post_id, "meta_key": meta_key, "new_value": new_value}
+    current_etag = _etag(previous_value)
+    change_digest = _change_digest(site, "wp_mutate_post_meta", target, current_etag, payload)
     if not apply:
         return {
             "site": site,
@@ -151,16 +173,19 @@ def wp_mutate_post_meta(
             "meta_key": meta_key,
             "previous_value": previous_value,
             "proposed_value": new_value,
-            "etag": _etag(previous_value),
+            "etag": current_etag,
+            "change_digest": change_digest,
         }
 
     _check_etag(expected_etag, previous_value)
-    packet = require_approved_packet(get_packet_store(), site)
+    packet = require_approved_packet(
+        get_packet_store(), site, target=target, change_digest=change_digest
+    )
     snapshot = get_snapshot_store().record(
         packet_id=packet.id,
         site=site,
         tool="wp_mutate_post_meta",
-        target=f"post:{post_id}:{meta_key}",
+        target=target,
         previous_value=previous_value,
         new_value=new_value,
         reread=["post_meta", post_id, meta_key],
@@ -215,6 +240,12 @@ def wp_mutate_post_content(
         match_count = current_content.count(search)
         proposed_content = current_content.replace(search, replace)
 
+        target = f"post:{post_id}:content"
+        payload = {"post_id": post_id, "search": search, "replace": replace}
+        current_etag = _etag(current_content)
+        change_digest = _change_digest(
+            site, "wp_mutate_post_content", target, current_etag, payload
+        )
         if not apply:
             return {
                 "site": site,
@@ -224,16 +255,19 @@ def wp_mutate_post_content(
                 "search": search,
                 "replace": replace,
                 "match_count": match_count,
-                "etag": _etag(current_content),
+                "etag": current_etag,
+                "change_digest": change_digest,
             }
 
         _check_etag(expected_etag, current_content)
-        packet = require_approved_packet(get_packet_store(), site)
+        packet = require_approved_packet(
+            get_packet_store(), site, target=target, change_digest=change_digest
+        )
         snapshot = get_snapshot_store().record(
             packet_id=packet.id,
             site=site,
             tool="wp_mutate_post_content",
-            target=f"post:{post_id}:content",
+            target=target,
             previous_value=current_content,
             new_value=proposed_content,
             reread=["post_content", post_id],
@@ -264,6 +298,12 @@ def wp_mutate_post_content(
     match_count = (preview or {}).get("match_count", 0)
     previous_content = (preview or {}).get("previous_content")
 
+    target = f"post:{post_id}:content"
+    payload = {"post_id": post_id, "search": search, "replace": replace}
+    current_etag = _etag(previous_content)
+    change_digest = _change_digest(
+        site, "wp_mutate_post_content", target, current_etag, payload
+    )
     if not apply:
         return {
             "site": site,
@@ -273,11 +313,14 @@ def wp_mutate_post_content(
             "search": search,
             "replace": replace,
             "match_count": match_count,
-            "etag": _etag(previous_content),
+            "etag": current_etag,
+            "change_digest": change_digest,
         }
 
     _check_etag(expected_etag, previous_content)
-    packet = require_approved_packet(get_packet_store(), site)
+    packet = require_approved_packet(
+        get_packet_store(), site, target=target, change_digest=change_digest
+    )
     companion_new_content = (
         previous_content.replace(search, replace) if isinstance(previous_content, str) else None
     )
@@ -285,7 +328,7 @@ def wp_mutate_post_content(
         packet_id=packet.id,
         site=site,
         tool="wp_mutate_post_content",
-        target=f"post:{post_id}:content",
+        target=target,
         previous_value=previous_content,
         new_value=companion_new_content,
         reread=["post_content", post_id],
@@ -342,18 +385,24 @@ def wp_eval(site: str, php_code: str, apply: bool = False) -> dict:
             f"which never exposes raw PHP eval. Register an ssh-transport site to use wp_eval."
         )
 
+    target = "raw_php_eval"
+    payload = {"php_code": php_code}
+    change_digest = _change_digest(site, "wp_eval", target, None, payload)
     if not apply:
         return {
             "site": site,
             "dry_run": True,
             "applied": False,
             "php_code": php_code,
+            "change_digest": change_digest,
             "note": "not executed; call again with apply=True and an approved change packet to run",
         }
 
-    packet = require_approved_packet(get_packet_store(), site)
+    packet = require_approved_packet(
+        get_packet_store(), site, target=target, change_digest=change_digest
+    )
     snapshot = get_snapshot_store().record(
-        packet_id=packet.id, site=site, tool="wp_eval", target="raw_php_eval", previous_value=None
+        packet_id=packet.id, site=site, tool="wp_eval", target=target, previous_value=None
     )
     result = ssh_wpcli.run_eval(site_config, php_code)
     get_packet_store().log(

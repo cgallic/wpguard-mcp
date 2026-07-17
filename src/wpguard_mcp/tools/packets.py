@@ -19,7 +19,14 @@ from ..notify import emit_event
 from ..transports import companion_plugin, ssh_wpcli
 
 
-def packet_open(site: str, summary: str, risk: str = "low", target: str = "*") -> dict:
+def packet_open(
+    site: str,
+    summary: str,
+    risk: str = "low",
+    target: str = "*",
+    verb: str | None = None,
+    change_digest: str | None = None,
+) -> dict:
     """Open (propose) a change packet for `site`. Required before any apply=True
     mutation on that site -- but note the packet must also be *approved*
     (packet_approve) before the guard will let a write through.
@@ -35,7 +42,14 @@ def packet_open(site: str, summary: str, risk: str = "low", target: str = "*") -
     so packet history stays scannable.
     """
     store = get_packet_store()
-    packet = store.open_packet(site=site, summary=summary, risk=risk, target=target)
+    packet = store.open_packet(
+        site=site,
+        summary=summary,
+        risk=risk,
+        target=target,
+        verb=verb,
+        change_digest=change_digest,
+    )
     emit_event("packet_proposed", packet.to_dict())
     return packet.to_dict()
 
