@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/cgallic/wpguard-mcp/security/advisories/new
+    about: Please don't file security issues as public bug reports — use private advisory reporting instead.
+  - name: Questions / discussion
+    url: https://github.com/cgallic/wpguard-mcp/discussions
+    about: General questions, deployment help, or "is this the right way to do X."

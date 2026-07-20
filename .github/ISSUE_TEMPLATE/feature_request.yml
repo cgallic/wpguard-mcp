@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a new verb, transport, policy, or capability.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What job is this for
+      description: What are you trying to do to a WordPress site that wpguard can't do (safely) today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: If this is a new tool/verb, what tier would it be (recon / guarded mutate / raw eval), and what would dry-run vs apply look like?
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you've tried
+      description: e.g. going through wp_eval today, or a manual step outside wpguard.
+    validations:
+      required: false
