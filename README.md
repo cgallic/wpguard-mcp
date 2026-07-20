@@ -104,7 +104,7 @@ python -c "import secrets; print(secrets.token_hex(32))"   # generate a token
 docker compose up -d
 ```
 
-The server comes up on `http://127.0.0.1:8642/mcp`, bound to loopback, with the packet ledger / snapshots / site registry persisted in a named volume. The image is published to `ghcr.io/cgallic/wpguard-mcp`.
+The server comes up on `http://127.0.0.1:8642/mcp`, bound to loopback, with the packet ledger / snapshots / site registry persisted in a named volume. Tagged releases publish multi-arch (amd64/arm64) images to `ghcr.io/cgallic/wpguard-mcp` — see [Releases](https://github.com/cgallic/wpguard-mcp/releases). If you're on a pre-release checkout with no published image yet, uncomment `build: .` in `docker-compose.yml` to build locally instead.
 
 ### Option B — pip (for developing on this repo)
 
@@ -257,7 +257,8 @@ It renders each packet, its approval, its snapshots (previous → new), and veri
 Both are **entirely optional and best-effort** — a delivery failure never blocks or fails the underlying operation, and with these unset there are zero extra network calls.
 
 - **Notification webhooks** — set `WPGUARD_NOTIFY_WEBHOOKS` (comma-separated) to POST a human-readable message on selected events (`WPGUARD_NOTIFY_EVENTS`). Slack incoming-webhook and Discord webhook URLs both work as-is. Raw eval (`tier3_eval_fired`) always notifies. This is what makes the approval workflow function day-to-day: a packet that needs approval actually pings someone.
-- **Cloud-reporting hook** — set `WPGUARD_CLOUD_REPORT_URL` (+ optional `WPGUARD_CLOUD_API_KEY`) to push packet-lifecycle **metadata** (site, target, summary, risk, status, timestamps — never full content, never credentials) to a control plane such as [wpguard-cloud](https://github.com/cgallic/wpguard-cloud). The open-source core stays complete and useful with this unset; it's a thin optional hook, not a dependency.
+- **Cloud-reporting hook** — set `WPGUARD_CLOUD_REPORT_URL` (+ optional `WPGUARD_CLOUD_API_KEY`) to push packet-lifecycle **metadata** (site, target, summary, risk, status, timestamps — never full content, never credentials) to a control plane such as WP MCP Cloud, a separately-hosted, closed-source product built on top of this open-source core. The open-source core stays complete and useful with this unset; it's a thin optional hook, not a dependency.
+- **Cloud pairing** (experimental) — `wpguard cloud pair --code <code> --name <name>` pairs this instance with WP MCP Cloud for two-way approval polling (as opposed to the one-way reporting hook above). Reads `WPGUARD_CLOUD_URL` once at pairing time (defaults to `https://api.wpmcp.io`); the paired instance URL and token are then persisted to `state/config/cloud.json`, not re-read from the environment. `wpguard cloud poll` applies any pending remote approve/reject decisions to local packets. This is new and not yet hardened — treat it as experimental.
 
 ## Companion plugin
 

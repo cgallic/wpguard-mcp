@@ -110,11 +110,11 @@ Tracked openly rather than papered over:
 
 **Please do not open a public issue for a security vulnerability.**
 
-- Preferred: open a private report via **GitHub Security Advisories**
-  ("Report a vulnerability" under the repository's *Security* tab). Private
-  vulnerability reporting is enabled for this repo.
-- Alternative: email the maintainer at the address on the GitHub profile for
-  [@cgallic](https://github.com/cgallic).
+Open a private report via **GitHub Security Advisories** — ["Report a
+vulnerability"](https://github.com/cgallic/wpguard-mcp/security/advisories/new)
+under the repository's *Security* tab. Private vulnerability reporting is
+enabled for this repo; this is the only channel we're committing to a
+response time on.
 
 Please include a description, reproduction steps, affected version/commit, and
 impact. We aim to acknowledge within a few days and will coordinate a fix and
