@@ -4,21 +4,21 @@ A **guarded WordPress MCP server**: it lets any MCP-compatible AI client — Cla
 
 ## Capability-scoped by design
 
-**The AI never gets raw code execution as a normal tool.** It gets specific named actions — *update this option, edit this post, bust this cache* — and each one previews, backs up, and requires a stated-and-approved reason before it touches the live site. Raw PHP execution still exists for the rare case you truly need it, but it's opt-in, separately scoped, and never the default path.
+**Named verbs are the front door; raw eval is a gated fire escape; nothing writes without an approved change packet.** That's the whole design in one line, and it's a deliberate bet on **named-verb WordPress AI automation** over raw-eval automation: the AI's normal vocabulary is a closed set of typed tools, not a code interpreter.
 
-That's the whole design in one line: **named verbs are the front door; raw eval is a gated fire escape; nothing writes without an approved change packet.**
+Concretely: **the AI never gets raw code execution as a normal tool.** It gets specific named actions — *update this option, edit this post, bust this cache* — and each one previews the change (a **dry-run WordPress AI agent** flow, `apply=False` by default), backs up what it's about to overwrite before it writes anything (**backup-before-write**, so undoing an AI WordPress change is a rollback, not an incident), and requires a stated-and-approved reason before it touches the live site. Raw PHP execution still exists for the rare case you truly need it, but it's a **gated raw-eval / PHP-execution escape hatch** — opt-in, separately scoped, and never the default path.
 
-This matters because the rest of the space largely inverts it. Most "WordPress + AI" MCP servers put **raw PHP execution at the front door** — the agent's primary interface is "run this code." That's honest about what it is (full access, full responsibility), but it means every call is one bad prompt away from `wp_delete_post` on the wrong ID or a truncated `wp_options` table, and "the agent won't hallucinate a destructive call" is not a safety model. Adding an audit log on top of *the AI can run arbitrary PHP* is now table stakes, not a differentiator. **Closed-by-default — named actions first, raw execution gated behind an explicit tier — is an architectural difference, not a logging feature.**
-
-Concretely, that closed-by-default posture is three tiers:
+That closed-by-default posture is three explicit tiers:
 
 - **Tier 1 — recon (read-only).** `wp_recon`, `wp_get_option`, `wp_get_post_meta`. No packet, no risk of a write.
-- **Tier 2 — guarded named verbs.** `wp_mutate_option`, `wp_mutate_post_meta`, `wp_mutate_post_content`, `wp_cache_bust`. Each **dry-runs by default** and refuses to write without an approved packet.
+- **Tier 2 — guarded named verbs.** `wp_mutate_option`, `wp_mutate_post_meta`, `wp_mutate_post_content`, `wp_cache_bust`. Each dry-runs by default, snapshots the prior value first, and refuses to write without an approved packet.
 - **Tier 3 — the raw-eval escape hatch.** `wp_eval` runs arbitrary PHP over SSH. Same approval guard as everything else, `admin`-scoped only, deliberately harder to reach than any named verb.
+
+This matters because of *where* the gate sits, not *whether* one exists. By mid-2026, dry-run previews, pre-write backups, and human-in-the-loop approval are common across WordPress AI tools generally — see [How it compares](#how-it-compares) — so "the AI asks before doing something risky" isn't a differentiator by itself anymore. What's still uncommon is structuring the *entire* tool around named verbs as the only normal path to a write, with raw execution demoted to a separate, deliberately harder-to-reach tier, instead of a safety flag bolted onto a code-execution primitive. Most "WordPress + AI" MCP servers still put **raw PHP execution at the front door**: the agent's primary interface is "run this code," with guardrails layered on top of that. That's honest about what it is (full access, full responsibility), but it means every call is one bad prompt away from `wp_delete_post` on the wrong ID or a truncated `wp_options` table. **Closed-by-default — named actions first, raw execution gated behind an explicit tier — is an architectural difference, not a logging feature.**
 
 ## How it compares
 
-Where wpguard-mcp sits relative to the other tools you'll evaluate. Sourced and current as of July 2026 — verify against each project's current docs before relying on a cell, the space moves fast.
+Where wpguard-mcp sits relative to the other tools you'll evaluate — a noticeably bigger field than it was even six months ago. WordPress 7.0 (May 2026) shipped an Abilities API, an AI Client, and a Connectors API in core, and dry-run previews, pre-write backups, and human-in-the-loop approval have gone from one tool's pitch to baseline expectation across the space. Sourced and current as of July 2026 — verify against each project's current docs before relying on a cell, the space moves fast.
 
 | | Raw PHP/eval as the default interface? | Dry-run before write? | Backup/snapshot before write? | Change-approval gate (beyond role permission)? | Block-structural edits? | Transport |
 |---|---|---|---|---|---|---|
@@ -26,17 +26,30 @@ Where wpguard-mcp sits relative to the other tools you'll evaluate. Sourced and 
 | **[WordPress/mcp-adapter][adp]** (official) | No — invokes registered *abilities* | Per-ability | No | No² | Depends on registered abilities | Plugin (HTTP/STDIO, Abilities API) |
 | **[GravityKit Block MCP][blk]** | No | — | **Yes** — native WP revisions + `revert_to_revision` | No | **Yes** — its defining feature | Plugin |
 | **[InstaWP / InstaMCP][iwp]** | No — `execute_php` off by default, 4 guard layers | Via staging clone (test-then-promote) | Via disposable staging clone | No | — | Plugin + hosted staging |
+| **[Respira][rsp]** | No — structured named tools only | **Yes**³ — copy-first duplicate-and-swap (paid tiers) | **Yes** — 90-day restore points, one-click rollback | **Yes** — explicit approval step for deletes, plugin installs, bulk ops | Element-level (move/duplicate/remove) across 16 builders incl. Gutenberg | Plugin + local MCP server (Node.js) |
+| **[AICOM][aic]** | No — structured ops via MCP/OpenAPI | **Yes** — `dry_run:true` param, validated + simulated | **Yes** — explicit pre-change snapshot, session-based multi-undo | No⁴ — site-wide Soft/Hard lock + key scopes, not a distinct approval step | No — posts/meta/Elementor pages, not Gutenberg block structure | Plugin (REST `/wp-json/aicom/v1/mcp`) |
+| **[WPVibe][wpv]** | No — allowlisted WP-CLI (40+ cmds), no eval | **Yes** — required before destructive ops; explicit `--dry-run` for search/replace | Theme-file backups + trash — no general pre-write snapshot documented | **Yes** — pauses for in-chat/browser approval, logged separately | — | Plugin + hosted WPVibe service (HTTPS) |
+| **[WordPress.com][wpc]** (native agent) | No — 60+ structured tools over the WP REST API | Confirmation required, no documented preview/diff⁵ | Trash only (30 days); permanent for categories/tags | **Yes** — explicit per-write confirmation, independent of role | **Yes** — pages managed with full block-editor content | Native MCP — WordPress.com (paid plans) or self-hosted via Jetpack Complete/AI |
+| **[Agent Abilities for MCP][aam]** | No — "no arbitrary option or meta access ... no code execution" | No | No — native Trash only, where the ability supports it | No² — capability-gated only (same permission model as mcp-adapter) | — | Plugin (built on WordPress/mcp-adapter + Abilities API) |
 | **wpguard-mcp** | **No** — named verbs default; raw eval is gated Tier 3, SSH-only | **Yes** — `apply=False` is the default on every verb | **Yes** — before every write, plus optional durable re-verify | **Yes** — propose/approve *change packet*, distinct from role/token | No — raw search/replace today (block-aware verb planned, [#4][i4]) | SSH+WP-CLI **or** companion plugin (plugin has no eval) |
 
 ¹ Novamira authenticates via WordPress Application Passwords and the capability system, but doesn't add a separate per-change approval step on top of *the AI can run arbitrary PHP*.
-² The MCP Adapter enforces per-ability `permission_callback` (WordPress capabilities) — that's a *role/permission* check, not a distinct "someone approved this specific change" gate. Cells marked "—" weren't a documented, distinct feature of that tool as of the sources below.
+² The MCP Adapter enforces per-ability `permission_callback` (WordPress capabilities) — that's a *role/permission* check, not a distinct "someone approved this specific change" gate. Cells marked "—" weren't a documented, distinct feature of that tool as of the sources below. Agent Abilities for MCP is built on the same MCP Adapter library and inherits the same posture.
+³ Respira's copy-first default ("the AI works on a duplicate and you approve the swap") applies to its paid tiers; the free Respira Lite WordPress.org plugin ships without it ("no duplicate-before-edit safety").
+⁴ AICOM's Soft/Hard Lock is a site-wide switch tied to API-key scope, not a per-change approval step — there's no propose/approve split where a distinct party signs off on one specific proposed value.
+⁵ WordPress.com's developer docs and Automattic's own announcement both require explicit confirmation before every write, but neither documents a structured before/after diff the way a dry-run payload would — some press coverage describes a "diff," the primary docs don't confirm the format.
 
-Human-in-the-loop review and audit logging are increasingly standard across the field (InstaWP staging review, Block MCP revisions, and others), so wpguard-mcp doesn't lead on those alone. Its distinct posture is **named-verb-by-default with a deliberately gated raw-eval escape hatch, structured as explicit tiers** — most tools gate raw PHP *somewhere*, but don't make named verbs the front door and raw execution a separate, harder-to-reach tier.
+Human-in-the-loop review, dry-run previews, and audit logging are now standard across the field, not a wpguard-mcp differentiator by themselves — InstaWP's staging review, Block MCP's revisions, Respira's restore points, AICOM's snapshots-and-locks, WPVibe's browser approval, and WordPress.com's per-write confirmation all cover some slice of the same ground. WordPress 7.0's Abilities API, AI Client, and Connectors API standardized part of the underlying plumbing too: named, typed, permission-gated abilities are now a first-class WordPress-core concept, and both mcp-adapter and Agent Abilities for MCP build directly on that layer. wpguard-mcp doesn't — it talks WP-CLI over SSH or its own companion-plugin REST route, independent of core version — but it converges on the same idea from a different angle. What's still uncommon, in core's shape or any of the above, is wpguard-mcp's specific posture: **named-verb-by-default with a deliberately gated raw-eval escape hatch, structured as explicit tiers** — most tools gate raw PHP *somewhere*, or don't expose it at all, but don't organize the whole tool around named verbs being the front door and raw execution a separate, harder-to-reach tier.
 
 [nov]: https://github.com/use-novamira/novamira
 [adp]: https://github.com/WordPress/mcp-adapter
 [blk]: https://github.com/GravityKit/block-mcp
 [iwp]: https://instawp.com/wordpress-mcp-server/
+[rsp]: https://www.respira.press/
+[aic]: https://wordpress.org/plugins/aicom/
+[wpv]: https://wordpress.org/plugins/vibe-ai/
+[wpc]: https://wordpress.com/ai/mcp/
+[aam]: https://github.com/unaibamir/agent-abilities-for-mcp
 [i4]: https://github.com/cgallic/wpguard-mcp/issues/4
 
 ## Architecture
