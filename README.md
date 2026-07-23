@@ -338,3 +338,8 @@ CI runs all three on every PR across Python 3.10–3.12.
 ## License
 
 MIT, see `LICENSE`.
+
+
+---
+
+*Built and maintained by [Connor Gallic](https://pr.linkedin.com/in/cgallic) — connect on LinkedIn.*
