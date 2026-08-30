@@ -493,6 +493,33 @@ class SnapshotStore:
             fh.write(json.dumps(snapshot.to_dict()) + "\n")
         return snapshot
 
+    def get(self, snapshot_id: str) -> Snapshot | None:
+        if not self.path.exists():
+            return None
+        with self.path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                data = json.loads(line)
+                if data.get("id") == snapshot_id:
+                    return Snapshot(**data)
+        return None
+
+    def list_all(self, site: str | None = None) -> list[Snapshot]:
+        if not self.path.exists():
+            return []
+        results: list[Snapshot] = []
+        with self.path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                data = json.loads(line)
+                if site is None or data.get("site") == site:
+                    results.append(Snapshot(**data))
+        return results
+
     def list_for_packet(self, packet_id: str) -> list[Snapshot]:
         if not self.path.exists():
             return []

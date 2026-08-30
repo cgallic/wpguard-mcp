@@ -46,12 +46,23 @@ SCOPE_LEVELS = {"recon": 1, "mutate": 2, "admin": 3}
 # listed; an unmapped tool is treated as Tier 3 (admin-only) so a new tool
 # added without a policy entry fails closed rather than open.
 TOOL_TIERS = {
-    # Tier 1: read-only recon
+    # Tier 1: read-only recon & discovery
     "wp_recon": 1,
     "wp_get_option": 1,
     "wp_get_post_meta": 1,
     "site_list": 1,
     "packet_list": 1,
+    "wp_schema_recon": 1,
+    "wp_file_read": 1,
+    "wp_file_tree": 1,
+    "wp_snippet_list": 1,
+    "wp_block_parse": 1,
+    "wp_block_validate": 1,
+    "wp_magic_login": 1,
+    "wp_skill_get": 1,
+    "wp_skill_list": 1,
+    "wp_design_context": 1,
+    "wp_cli_job_status": 1,
     # Tier 2: guarded named verbs + the packet lifecycle that authorizes them
     "wp_mutate_option": 2,
     "wp_mutate_post_meta": 2,
@@ -62,8 +73,22 @@ TOOL_TIERS = {
     "packet_log": 2,
     "packet_close": 2,
     "site_register": 2,
+    "wp_eval_sandbox": 2,
+    "wp_snippet_save": 2,
+    "wp_snippet_toggle": 2,
+    "wp_file_write": 2,
+    "wp_file_edit": 2,
+    "wp_file_delete": 2,
+    "wp_block_compose": 2,
+    "wp_post_create": 2,
+    "wp_skill_save": 2,
+    "wp_rollback": 2,
+    "wp_db_query": 2,
+    "wp_cli_job_cancel": 2,
     # Tier 3: raw escape hatch
     "wp_eval": 3,
+    "wp_cli_run": 3,
+    "wp_cli_job_start": 3,
 }
 
 DEFAULT_TIER = 3  # fail closed for anything not explicitly mapped

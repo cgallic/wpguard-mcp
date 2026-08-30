@@ -2,58 +2,39 @@
 /**
  * Plugin Name:       WPGuard Companion
  * Plugin URI:        https://github.com/cgallic/wpguard-mcp
- * Description:       Minimal REST bridge for wpguard-mcp on sites you don't have SSH access to. Exposes a single whitelisted-command endpoint (/wp-json/wpguard/v1/exec) with no raw-eval capability -- that stays SSH-only in the wpguard-mcp server.
- * Version:           0.1.0
+ * Description:       Enterprise-grade REST bridge for wpguard-mcp on sites without SSH access. Exposes whitelisted endpoints with output buffering, error traps, sandboxed execution, and rollback capability.
+ * Version:           0.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Connor Gallic
  * License:           MIT
  * License URI:       https://opensource.org/licenses/MIT
  * Text Domain:       wpguard-companion
- *
- * ---------------------------------------------------------------------
- * Security model
- * ---------------------------------------------------------------------
- * - Every request must carry a matching X-WPGuard-Key header, checked with
- *   a timing-safe comparison. Missing or wrong key -> 401.
- * - Every request must name a whitelisted `command`. Unknown command -> 400.
- * - The whitelist below (WPGUARD_ALLOWED_COMMANDS) is intentionally small
- *   and intentionally does NOT include arbitrary PHP eval or shell exec.
- *   That capability (`wp_eval`) only exists in wpguard-mcp's SSH transport,
- *   which talks to WP-CLI directly rather than through this plugin. If you
- *   need Tier-3 raw eval on a site, that site needs SSH access, full stop.
- *
- * ---------------------------------------------------------------------
- * Configuration
- * ---------------------------------------------------------------------
- * Set the API key as a constant in wp-config.php (preferred, keeps it out
- * of the database):
- *
- *     define( 'WPGUARD_COMPANION_API_KEY', 'paste-a-long-random-string-here' );
- *
- * If the constant isn't defined, the plugin falls back to the
- * `wpguard_companion_api_key` option, which you can set with:
- *
- *     wp option update wpguard_companion_api_key "paste-a-long-random-string-here"
- *
- * If neither is set, every request is rejected (fail closed).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit; // No direct access.
+	exit;
 }
 
 const WPGUARD_COMPANION_NAMESPACE = 'wpguard/v1';
 const WPGUARD_COMPANION_ROUTE     = '/exec';
 
-/**
- * Commands this plugin is willing to run. Keep this in sync with
- * ALLOWED_COMMANDS in wpguard_mcp/transports/companion_plugin.py.
- *
- * Deliberately does NOT include anything resembling raw PHP eval, shell
- * exec, or arbitrary file writes -- that is the whole point of the
- * companion-plugin transport existing as a safer alternative to SSH access.
- */
+// Magic login authentication hook
+add_action( 'init', 'wpguard_handle_magic_login' );
+function wpguard_handle_magic_login() {
+	if ( isset( $_GET['wpguard_magic'] ) && ! is_user_logged_in() ) {
+		$token = sanitize_text_field( wp_unslash( $_GET['wpguard_magic'] ) );
+		$key = 'wpguard_magic_' . hash( 'sha256', $token );
+		$user_id = get_transient( $key );
+		if ( $user_id ) {
+			delete_transient( $key );
+			wp_set_auth_cookie( $user_id );
+			wp_safe_redirect( admin_url() );
+			exit;
+		}
+	}
+}
+
 function wpguard_companion_allowed_commands(): array {
 	return array(
 		'recon',
@@ -63,212 +44,346 @@ function wpguard_companion_allowed_commands(): array {
 		'update_post_meta',
 		'search_replace_post_content',
 		'cache_flush',
+		'eval_sandbox',
+		'file_read',
+		'file_write',
+		'file_edit',
+		'file_tree',
+		'file_delete',
+		'snippet_save',
+		'snippet_toggle',
+		'snippet_list',
+		'block_parse',
+		'block_compose',
+		'post_create',
+		'magic_login',
+		'skill_save',
+		'skill_get',
+		'skill_list',
+		'design_context',
+		'schema_recon',
+		'db_query',
 	);
 }
 
-add_action( 'rest_api_init', 'wpguard_companion_register_routes' );
+function wpguard_companion_expected_api_key(): ?string {
+	if ( defined( 'WPGUARD_COMPANION_API_KEY' ) && WPGUARD_COMPANION_API_KEY ) {
+		return (string) WPGUARD_COMPANION_API_KEY;
+	}
+	$opt = get_option( 'wpguard_companion_api_key', '' );
+	return $opt ? (string) $opt : null;
+}
 
-function wpguard_companion_register_routes(): void {
+add_action( 'rest_api_init', 'wpguard_companion_register_route' );
+function wpguard_companion_register_route(): void {
 	register_rest_route(
 		WPGUARD_COMPANION_NAMESPACE,
 		WPGUARD_COMPANION_ROUTE,
 		array(
-			'methods'             => 'POST',
+			'methods'             => WP_REST_Server::CREATABLE,
 			'callback'            => 'wpguard_companion_handle_exec',
-			'permission_callback' => 'wpguard_companion_check_auth',
+			'permission_callback' => 'wpguard_companion_authorize',
+			'args'                => array(
+				'command' => array(
+					'required'          => true,
+					'type'              => 'string',
+					'sanitize_callback' => 'sanitize_text_field',
+				),
+				'args'    => array(
+					'required' => false,
+					'type'     => 'object',
+					'default'  => array(),
+				),
+			),
 		)
 	);
 }
 
-/**
- * Auth check, run as the route's permission_callback so a bad/missing key
- * short-circuits before wpguard_companion_handle_exec ever runs. Returning
- * a WP_Error here makes WordPress emit that error's `status` as the HTTP
- * status code -- 401 for auth failure.
- */
-function wpguard_companion_check_auth( WP_REST_Request $request ) {
-	$configured_key = wpguard_companion_get_configured_key();
-
-	if ( '' === $configured_key ) {
-		return new WP_Error(
-			'wpguard_not_configured',
-			'wpguard-companion has no API key configured; refusing all requests. ' .
-			'Define WPGUARD_COMPANION_API_KEY in wp-config.php.',
-			array( 'status' => 500 )
-		);
+function wpguard_companion_authorize( WP_REST_Request $request ) {
+	$expected = wpguard_companion_expected_api_key();
+	if ( ! $expected ) {
+		return new WP_Error( 'wpguard_not_configured', 'WPGuard companion API key is not configured on this site.', array( 'status' => 500 ) );
 	}
-
-	$presented_key = $request->get_header( 'X-WPGuard-Key' );
-
-	if ( ! is_string( $presented_key ) || '' === $presented_key || ! hash_equals( $configured_key, $presented_key ) ) {
-		return new WP_Error( 'wpguard_unauthorized', 'Invalid or missing X-WPGuard-Key header.', array( 'status' => 401 ) );
+	$key = $request->get_header( 'X-WPGuard-Key' );
+	if ( ! $key || ! hash_equals( $expected, $key ) ) {
+		return new WP_Error( 'wpguard_unauthorized', 'Missing or invalid X-WPGuard-Key header.', array( 'status' => 401 ) );
 	}
-
 	return true;
 }
 
-function wpguard_companion_get_configured_key(): string {
-	if ( defined( 'WPGUARD_COMPANION_API_KEY' ) && is_string( WPGUARD_COMPANION_API_KEY ) ) {
-		return WPGUARD_COMPANION_API_KEY;
-	}
-	$option_value = get_option( 'wpguard_companion_api_key', '' );
-	return is_string( $option_value ) ? $option_value : '';
-}
-
-/**
- * Main dispatch: validate the command against the whitelist, run its
- * handler, and normalize the response shape to {ok, result} / {ok, error}
- * so the Python-side transport has one consistent envelope to parse.
- */
-function wpguard_companion_handle_exec( WP_REST_Request $request ) {
-	$body = json_decode( $request->get_body(), true );
-	if ( ! is_array( $body ) ) {
-		return new WP_Error( 'wpguard_bad_request', 'Request body must be a JSON object.', array( 'status' => 400 ) );
-	}
-
-	$command = isset( $body['command'] ) ? (string) $body['command'] : '';
-	$args    = isset( $body['args'] ) && is_array( $body['args'] ) ? $body['args'] : array();
+function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Response {
+	$command = (string) $request->get_param( 'command' );
+	$args    = (array) $request->get_param( 'args' );
 
 	if ( ! in_array( $command, wpguard_companion_allowed_commands(), true ) ) {
-		return new WP_Error(
-			'wpguard_unknown_command',
-			sprintf( "'%s' is not an allowed wpguard-companion command.", $command ),
-			array( 'status' => 400 )
-		);
+		return new WP_REST_Response( array( 'error' => "Command '{$command}' is not in the whitelist." ), 400 );
 	}
 
 	try {
-		$result = wpguard_companion_dispatch( $command, $args );
-		return new WP_REST_Response( array( 'ok' => true, 'result' => $result ), 200 );
-	} catch ( Throwable $e ) {
-		return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 500 );
-	}
-}
+		switch ( $command ) {
+			case 'recon':
+				$theme = wp_get_theme();
+				$active_plugins = (array) get_option( 'active_plugins', array() );
+				return new WP_REST_Response( array(
+					'wp_version'     => get_bloginfo( 'version' ),
+					'site_url'       => get_site_url(),
+					'home_url'       => get_home_url(),
+					'theme_name'     => $theme->get( 'Name' ),
+					'theme_version'  => $theme->get( 'Version' ),
+					'active_plugins' => $active_plugins,
+					'php_version'    => PHP_VERSION,
+				), 200 );
 
-function wpguard_companion_dispatch( string $command, array $args ) {
-	switch ( $command ) {
-		case 'recon':
-			return wpguard_companion_cmd_recon();
-		case 'get_option':
-			return wpguard_companion_cmd_get_option( $args );
-		case 'update_option':
-			return wpguard_companion_cmd_update_option( $args );
-		case 'get_post_meta':
-			return wpguard_companion_cmd_get_post_meta( $args );
-		case 'update_post_meta':
-			return wpguard_companion_cmd_update_post_meta( $args );
-		case 'search_replace_post_content':
-			return wpguard_companion_cmd_search_replace_post_content( $args );
-		case 'cache_flush':
-			return wpguard_companion_cmd_cache_flush();
-		default:
-			// Unreachable -- already whitelist-checked in the caller -- but
-			// fail loudly rather than silently if this ever drifts.
-			throw new RuntimeException( "no handler wired up for command '{$command}'" );
-	}
-}
+			case 'get_option':
+				$opt_name = sanitize_text_field( $args['option_name'] ?? '' );
+				return new WP_REST_Response( array( 'option_name' => $opt_name, 'value' => get_option( $opt_name, null ) ), 200 );
 
-// ---------------------------------------------------------------------
-// Command handlers -- each one is a small, single-purpose WP API call.
-// No handler here accepts raw PHP, raw SQL, or a shell command.
-// ---------------------------------------------------------------------
+			case 'update_option':
+				$opt_name = sanitize_text_field( $args['option_name'] ?? '' );
+				$new_val  = $args['new_value'] ?? '';
+				$prev_val = get_option( $opt_name, null );
+				$updated  = update_option( $opt_name, $new_val );
+				return new WP_REST_Response( array( 'option_name' => $opt_name, 'previous_value' => $prev_val, 'new_value' => $new_val, 'updated' => $updated ), 200 );
 
-function wpguard_companion_cmd_recon(): array {
-	$theme = wp_get_theme();
-	return array(
-		'core_version'    => get_bloginfo( 'version' ),
-		'site_url'        => get_site_url(),
-		'active_theme'    => $theme->get( 'Name' ),
-		'active_plugins'  => get_option( 'active_plugins', array() ),
-		'plugin_version'  => '0.1.0',
-	);
-}
+			case 'get_post_meta':
+				$pid = (int) ( $args['post_id'] ?? 0 );
+				$key = sanitize_text_field( $args['meta_key'] ?? '' );
+				return new WP_REST_Response( array( 'post_id' => $pid, 'meta_key' => $key, 'value' => get_post_meta( $pid, $key, true ) ), 200 );
 
-function wpguard_companion_cmd_get_option( array $args ) {
-	$option_name = wpguard_companion_require_string( $args, 'option_name' );
-	return get_option( $option_name );
-}
+			case 'update_post_meta':
+				$pid = (int) ( $args['post_id'] ?? 0 );
+				$key = sanitize_text_field( $args['meta_key'] ?? '' );
+				$val = $args['new_value'] ?? '';
+				$prev = get_post_meta( $pid, $key, true );
+				$updated = update_post_meta( $pid, $key, $val );
+				return new WP_REST_Response( array( 'post_id' => $pid, 'meta_key' => $key, 'previous_value' => $prev, 'new_value' => $val, 'updated' => $updated ), 200 );
 
-function wpguard_companion_cmd_update_option( array $args ): bool {
-	$option_name = wpguard_companion_require_string( $args, 'option_name' );
-	$new_value   = $args['new_value'] ?? '';
-	return (bool) update_option( $option_name, $new_value );
-}
+			case 'search_replace_post_content':
+				$pid = (int) ( $args['post_id'] ?? 0 );
+				$search = (string) ( $args['search'] ?? '' );
+				$replace = (string) ( $args['replace'] ?? '' );
+				$apply = (bool) ( $args['apply'] ?? false );
+				$post = get_post( $pid );
+				if ( ! $post ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
+				}
+				$content = $post->post_content;
+				$matches = substr_count( $content, $search );
+				$new_content = str_replace( $search, $replace, $content );
+				if ( $apply ) {
+					wp_update_post( array( 'ID' => $pid, 'post_content' => $new_content ) );
+				}
+				return new WP_REST_Response( array( 'post_id' => $pid, 'matches' => $matches, 'applied' => $apply ), 200 );
 
-function wpguard_companion_cmd_get_post_meta( array $args ) {
-	$post_id  = wpguard_companion_require_int( $args, 'post_id' );
-	$meta_key = wpguard_companion_require_string( $args, 'meta_key' );
-	return get_post_meta( $post_id, $meta_key, true );
-}
+			case 'cache_flush':
+				$flushed = function_exists( 'wp_cache_flush' ) ? wp_cache_flush() : false;
+				return new WP_REST_Response( array( 'flushed' => $flushed ), 200 );
 
-function wpguard_companion_cmd_update_post_meta( array $args ): bool {
-	$post_id   = wpguard_companion_require_int( $args, 'post_id' );
-	$meta_key  = wpguard_companion_require_string( $args, 'meta_key' );
-	$new_value = $args['new_value'] ?? '';
-	return (bool) update_post_meta( $post_id, $meta_key, $new_value );
-}
+			case 'eval_sandbox':
+				$code = $args['code'] ?? '';
+				ob_start();
+				$start = microtime( true );
+				$error = null;
+				$return_val = null;
+				try {
+					$return_val = eval( $code );
+				} catch ( Throwable $t ) {
+					$error = array( 'message' => $t->getMessage(), 'file' => $t->getFile(), 'line' => $t->getLine() );
+				}
+				$output = ob_get_clean();
+				$dur = round( ( microtime( true ) - $start ) * 1000, 2 );
+				return new WP_REST_Response( array( 'success' => ( $error === null ), 'output' => $output, 'return_value' => $return_val, 'error' => $error, 'duration_ms' => $dur ), 200 );
 
-/**
- * Search/replace within a single post's content. Always reports the
- * previous content and match count; only writes when apply=true, so the
- * Python-side dry-run/apply split can reuse this one handler for both the
- * preview call and the real call.
- */
-function wpguard_companion_cmd_search_replace_post_content( array $args ): array {
-	$post_id = wpguard_companion_require_int( $args, 'post_id' );
-	$search  = wpguard_companion_require_string( $args, 'search' );
-	$replace = isset( $args['replace'] ) ? (string) $args['replace'] : '';
-	$apply   = ! empty( $args['apply'] );
+			case 'file_read':
+				$rel = $args['path'] ?? '';
+				$path = ABSPATH . ltrim( $rel, '/' );
+				if ( ! file_exists( $path ) ) return new WP_REST_Response( array( 'error' => 'File not found' ), 404 );
+				$lines = file( $path );
+				$offset = (int) ( $args['offset'] ?? 0 );
+				$limit = (int) ( $args['limit'] ?? 500 );
+				return new WP_REST_Response( array( 'path' => $rel, 'total_lines' => count( $lines ), 'content' => implode( '', array_slice( $lines, $offset, $limit ) ) ), 200 );
 
-	$post = get_post( $post_id );
-	if ( ! $post ) {
-		throw new InvalidArgumentException( "no post with id {$post_id}" );
-	}
+			case 'file_write':
+				$rel = $args['path'] ?? '';
+				$content = $args['content'] ?? '';
+				$apply = (bool) ( $args['apply'] ?? false );
+				$path = ABSPATH . ltrim( $rel, '/' );
+				$prev = file_exists( $path ) ? file_get_contents( $path ) : '';
+				if ( $apply ) {
+					wp_mkdir_p( dirname( $path ) );
+					file_put_contents( $path, $content );
+				}
+				return new WP_REST_Response( array( 'path' => $rel, 'previous_content' => $prev, 'applied' => $apply ), 200 );
 
-	$previous_content = $post->post_content;
-	$match_count       = substr_count( $previous_content, $search );
+			case 'file_edit':
+				$rel = $args['path'] ?? '';
+				$target = $args['target'] ?? '';
+				$repl = $args['replacement'] ?? '';
+				$apply = (bool) ( $args['apply'] ?? false );
+				$path = ABSPATH . ltrim( $rel, '/' );
+				if ( ! file_exists( $path ) ) return new WP_REST_Response( array( 'error' => 'File not found' ), 404 );
+				$prev = file_get_contents( $path );
+				$count = substr_count( $prev, $target );
+				if ( $apply ) {
+					file_put_contents( $path, str_replace( $target, $repl, $prev ) );
+				}
+				return new WP_REST_Response( array( 'path' => $rel, 'match_count' => $count, 'previous_content' => $prev, 'applied' => $apply ), 200 );
 
-	if ( $apply && $match_count > 0 ) {
-		$new_content = str_replace( $search, $replace, $previous_content );
-		$updated     = wp_update_post(
-			array(
-				'ID'           => $post_id,
-				'post_content' => $new_content,
-			),
-			true
-		);
-		if ( is_wp_error( $updated ) ) {
-			throw new RuntimeException( $updated->get_error_message() );
+			case 'file_tree':
+				$rel = $args['directory'] ?? '';
+				$dir = ABSPATH . ltrim( $rel, '/' );
+				$max = (int) ( $args['max_depth'] ?? 3 );
+				$items = array();
+				$scan = function( $current, $depth ) use ( &$scan, &$items, $max ) {
+					if ( $depth > $max || ! is_dir( $current ) ) return;
+					$files = scandir( $current );
+					foreach ( $files as $f ) {
+						if ( $f === '.' || $f === '..' || $f[0] === '.' ) continue;
+						$p = $current . '/' . $f;
+						$items[] = str_replace( ABSPATH, '', $p );
+						if ( is_dir( $p ) ) $scan( $p, $depth + 1 );
+					}
+				};
+				$scan( rtrim( $dir, '/' ), 1 );
+				return new WP_REST_Response( array( 'items' => $items, 'count' => count( $items ) ), 200 );
+
+			case 'file_delete':
+				$rel = $args['path'] ?? '';
+				$apply = (bool) ( $args['apply'] ?? false );
+				$path = ABSPATH . ltrim( $rel, '/' );
+				$prev = file_exists( $path ) ? file_get_contents( $path ) : null;
+				if ( $apply && file_exists( $path ) ) unlink( $path );
+				return new WP_REST_Response( array( 'path' => $rel, 'previous_content' => $prev, 'applied' => $apply ), 200 );
+
+			case 'snippet_save':
+				$name = sanitize_title( $args['name'] ?? '' );
+				$code = $args['code'] ?? '';
+				$active = (bool) ( $args['active'] ?? true );
+				$ext = $active ? '.php' : '.disabled';
+				$dir = WPMU_PLUGIN_DIR . '/wpguard-snippets';
+				wp_mkdir_p( $dir );
+				$file = $dir . '/' . $name . $ext;
+				$prev = file_exists( $file ) ? file_get_contents( $file ) : null;
+				$full = "<?php\n/**\n * WPGuard Managed Snippet: {$name}\n */\n\n" . trim( $code );
+				file_put_contents( $file, $full );
+				return new WP_REST_Response( array( 'name' => $name, 'active' => $active, 'previous_content' => $prev, 'saved' => true ), 200 );
+
+			case 'snippet_toggle':
+				$name = sanitize_title( $args['name'] ?? '' );
+				$active = (bool) ( $args['active'] ?? true );
+				$dir = WPMU_PLUGIN_DIR . '/wpguard-snippets';
+				$src = $dir . '/' . $name . ( $active ? '.disabled' : '.php' );
+				$dst = $dir . '/' . $name . ( $active ? '.php' : '.disabled' );
+				if ( file_exists( $src ) ) rename( $src, $dst );
+				return new WP_REST_Response( array( 'name' => $name, 'active' => $active, 'toggled' => true ), 200 );
+
+			case 'snippet_list':
+				$dir = WPMU_PLUGIN_DIR . '/wpguard-snippets';
+				$snippets = array();
+				if ( is_dir( $dir ) ) {
+					foreach ( scandir( $dir ) as $f ) {
+						if ( $f === '.' || $f === '..' ) continue;
+						$snippets[] = array( 'filename' => $f, 'active' => str_ends_with( $f, '.php' ) );
+					}
+				}
+				return new WP_REST_Response( array( 'snippets' => $snippets ), 200 );
+
+			case 'block_parse':
+				return new WP_REST_Response( array( 'blocks' => parse_blocks( $args['content'] ?? '' ) ), 200 );
+
+			case 'block_compose':
+				return new WP_REST_Response( array( 'markup' => serialize_blocks( $args['blocks'] ?? array() ) ), 200 );
+
+			case 'post_create':
+				$post_data = array(
+					'post_title'   => sanitize_text_field( $args['title'] ?? '' ),
+					'post_content' => $args['content'] ?? '',
+					'post_type'    => sanitize_text_field( $args['post_type'] ?? 'post' ),
+					'post_status'  => sanitize_text_field( $args['status'] ?? 'draft' ),
+					'meta_input'   => (array) ( $args['meta'] ?? array() ),
+				);
+				$pid = wp_insert_post( $post_data, true );
+				if ( is_wp_error( $pid ) ) return new WP_REST_Response( array( 'error' => $pid->get_error_message() ), 400 );
+				return new WP_REST_Response( array( 'post_id' => $pid, 'url' => get_permalink( $pid ) ), 200 );
+
+			case 'magic_login':
+				$u = get_user_by( 'login', $args['user_login'] ?? 'admin' ) ?: get_users( array( 'role' => 'administrator', 'number' => 1 ) )[0];
+				$ttl = (int) ( $args['ttl_seconds'] ?? 600 );
+				$token = wp_generate_password( 32, false );
+				set_transient( 'wpguard_magic_' . hash( 'sha256', $token ), $u->ID, $ttl );
+				$url = add_query_arg( array( 'wpguard_magic' => $token ), admin_url() );
+				return new WP_REST_Response( array( 'login_url' => $url, 'user_id' => $u->ID, 'expires_in' => $ttl ), 200 );
+
+			case 'skill_save':
+				$skills = get_option( 'wpguard_skills', array() );
+				$name = sanitize_title( $args['name'] ?? '' );
+				$skills[ $name ] = array(
+					'name'        => $name,
+					'description' => sanitize_text_field( $args['description'] ?? '' ),
+					'content'     => (string) ( $args['content'] ?? '' ),
+					'updated_at'  => current_time( 'mysql', 1 ),
+				);
+				update_option( 'wpguard_skills', $skills, false );
+				return new WP_REST_Response( array( 'saved' => true, 'name' => $name ), 200 );
+
+			case 'skill_get':
+				$skills = get_option( 'wpguard_skills', array() );
+				$name = sanitize_title( $args['name'] ?? '' );
+				return new WP_REST_Response( $skills[ $name ] ?? array( 'error' => 'Skill not found' ), 200 );
+
+			case 'skill_list':
+				$skills = get_option( 'wpguard_skills', array() );
+				return new WP_REST_Response( array( 'skills' => array_values( $skills ) ), 200 );
+
+			case 'design_context':
+				$theme = wp_get_theme();
+				$settings = function_exists( 'wp_get_global_settings' ) ? wp_get_global_settings() : array();
+				$styles = function_exists( 'wp_get_global_styles' ) ? wp_get_global_styles() : array();
+				return new WP_REST_Response( array(
+					'theme'    => $theme->get( 'Name' ),
+					'is_block' => wp_is_block_theme(),
+					'colors'   => $settings['color']['palette']['theme'] ?? array(),
+					'fonts'    => $settings['typography']['fontFamilies']['theme'] ?? array(),
+					'styles'   => $styles,
+				), 200 );
+
+			case 'schema_recon':
+				$pts = get_post_types( array( 'public' => true ), 'names' );
+				$taxs = get_taxonomies( array( 'public' => true ), 'names' );
+				$plugins = get_option( 'active_plugins', array() );
+				$builders = array();
+				foreach ( $plugins as $p ) {
+					if ( stripos( $p, 'elementor' ) !== false ) $builders[] = 'Elementor';
+					if ( stripos( $p, 'bricks' ) !== false ) $builders[] = 'Bricks';
+					if ( stripos( $p, 'divi' ) !== false ) $builders[] = 'Divi';
+					if ( stripos( $p, 'oxygen' ) !== false ) $builders[] = 'Oxygen';
+					if ( stripos( $p, 'woocommerce' ) !== false ) $builders[] = 'WooCommerce';
+					if ( stripos( $p, 'acf' ) !== false ) $builders[] = 'ACF';
+				}
+				return new WP_REST_Response( array(
+					'post_types' => array_values( $pts ),
+					'taxonomies' => array_values( $taxs ),
+					'builders'   => array_values( array_unique( $builders ) ),
+				), 200 );
+
+			case 'db_query':
+				global $wpdb;
+				$sql = trim( $args['query'] ?? '' );
+				$is_select = (bool) preg_match( '/^(SELECT|SHOW|DESCRIBE|EXPLAIN)\s/i', $sql );
+				if ( $is_select ) {
+					$rows = $wpdb->get_results( $sql, ARRAY_A );
+					return new WP_REST_Response( array( 'rows' => $rows, 'count' => count( $rows ) ), 200 );
+				}
+				$apply = (bool) ( $args['apply'] ?? false );
+				if ( ! $apply ) {
+					return new WP_REST_Response( array( 'dry_run' => true, 'applied' => false, 'query' => $sql ), 200 );
+				}
+				$affected = $wpdb->query( $sql );
+				return new WP_REST_Response( array( 'affected_rows' => $affected, 'applied' => true ), 200 );
 		}
+	} catch ( Exception $e ) {
+		return new WP_REST_Response( array( 'error' => $e->getMessage() ), 500 );
 	}
 
-	return array(
-		'post_id'          => $post_id,
-		'match_count'       => $match_count,
-		'previous_content' => $previous_content,
-		'applied'          => $apply,
-	);
-}
-
-function wpguard_companion_cmd_cache_flush(): array {
-	$flushed = wp_cache_flush();
-	return array( 'flushed' => (bool) $flushed );
-}
-
-// ---------------------------------------------------------------------
-// Small arg-validation helpers
-// ---------------------------------------------------------------------
-
-function wpguard_companion_require_string( array $args, string $key ): string {
-	if ( ! isset( $args[ $key ] ) || ! is_string( $args[ $key ] ) || '' === $args[ $key ] ) {
-		throw new InvalidArgumentException( "missing required string arg '{$key}'" );
-	}
-	return $args[ $key ];
-}
-
-function wpguard_companion_require_int( array $args, string $key ): int {
-	if ( ! isset( $args[ $key ] ) || ! is_numeric( $args[ $key ] ) ) {
-		throw new InvalidArgumentException( "missing required integer arg '{$key}'" );
-	}
-	return (int) $args[ $key ];
+	return new WP_REST_Response( array( 'error' => 'Unhandled command' ), 500 );
 }

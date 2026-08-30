@@ -173,23 +173,48 @@ A token calling above its scope gets a clear `403`; hammering the server past th
 
 ## Tool catalog
 
-| Tier | Tool | Guarded? | Apply flag? | What it does |
-|---|---|---|---|---|
-| 1 | `wp_recon` | no | — | Core version, active plugins/theme, site URL. |
-| 1 | `wp_get_option` | no | — | Read one WP option (wrapped as untrusted content). |
-| 1 | `wp_get_post_meta` | no | — | Read one post-meta value (wrapped as untrusted content). |
-| 1 | `site_list` | no | — | List registered sites (no secrets included). |
-| 2 | `wp_mutate_option` | yes | yes | Update a WP option. Dry-run previews old vs. new + an etag. |
-| 2 | `wp_mutate_post_meta` | yes | yes | Update a post's meta value. Dry-run previews old vs. new. |
-| 2 | `wp_mutate_post_content` | yes | yes | Search/replace within one post's content. Dry-run reports match count. |
-| 2 | `wp_cache_bust` | **no** | — | Flush cache. Not guarded — no content change to roll back. |
-| 3 | `wp_eval` | yes | yes | Run arbitrary PHP via `wp eval`. **SSH + admin only.** Escape hatch. |
-| — | `packet_open` | — | — | **Propose** a change packet bound to `{site, verb, target, change_digest}`. |
-| — | `packet_approve` | — | — | **Authorize** a proposed packet. Only approved packets satisfy the guard. |
-| — | `packet_log` | — | — | Append a note to an open packet. |
-| — | `packet_close` | — | — | Close a packet; optional durable re-verify. |
-| — | `packet_list` | — | — | List packets by site / open / status. |
-| — | `site_register` | — | — | Register a site's SSH or companion-plugin connection info. |
+| Tier | Category | Tool | Guarded? | Apply flag? | What it does |
+|---|---|---|---|---|---|
+| 1 | Recon | `wp_recon` | no | — | Core version, active plugins/theme, site URL. |
+| 1 | Recon | `wp_get_option` | no | — | Read one WP option (wrapped as untrusted content). |
+| 1 | Recon | `wp_get_post_meta` | no | — | Read one post-meta value (wrapped as untrusted content). |
+| 1 | Recon | `wp_schema_recon` | no | — | Enumerate CPTs, taxonomies, ACF field groups, active builders. |
+| 1 | Recon | `site_list` | no | — | List registered sites (no secrets included). |
+| 1 | Files | `wp_file_read` | no | — | Read file under WordPress root with offset/limit. |
+| 1 | Files | `wp_file_tree` | no | — | Directory traversal & tree exploration under WordPress root. |
+| 1 | Runtime | `wp_snippet_list` | no | — | List all installed managed snippets. |
+| 1 | Blocks | `wp_block_parse` | no | — | Parse raw HTML / block content into structured AST. |
+| 1 | Blocks | `wp_block_validate` | no | — | Validate block delimiter syntax before saving. |
+| 1 | Access | `wp_magic_login` | no | — | Generate single-use, time-limited admin login URL for browser agents. |
+| 1 | Skills | `wp_skill_get` | no | — | Retrieve agent skill by name. |
+| 1 | Skills | `wp_skill_list` | no | — | List all stored skills. |
+| 1 | Context | `wp_design_context` | no | — | Extract theme global styles, palettes, fonts, and brand tokens. |
+| 1 | Async CLI | `wp_cli_job_status` | no | — | Poll status and logs of background WP-CLI job. |
+| 2 | Mutations | `wp_mutate_option` | yes | yes | Update a WP option. Dry-run previews old vs. new + an etag. |
+| 2 | Mutations | `wp_mutate_post_meta` | yes | yes | Update a post's meta value. Dry-run previews old vs. new. |
+| 2 | Mutations | `wp_mutate_post_content` | yes | yes | Search/replace within one post's content. Dry-run reports match count. |
+| 2 | Mutations | `wp_cache_bust` | **no** | — | Flush cache. Not guarded — no content change to roll back. |
+| 2 | Runtime | `wp_eval_sandbox` | yes | yes | Execute PHP in isolated sandbox with fatal-error trapping over SSH & plugin. |
+| 2 | Runtime | `wp_snippet_save` | yes | yes | Save custom PHP/CSS snippet into managed mu-plugin directory. |
+| 2 | Runtime | `wp_snippet_toggle` | no | — | Toggle snippet active/disabled state. |
+| 2 | Files | `wp_file_write` | yes | yes | Write file. Dry-run shows unified diff; snapshots before write. |
+| 2 | Files | `wp_file_edit` | yes | yes | Search/replace exact text in file with diff preview. |
+| 2 | Files | `wp_file_delete` | yes | yes | Delete file with pre-deletion snapshot. |
+| 2 | Blocks | `wp_block_compose` | no | — | Serialize structured JSON AST into valid Gutenberg block markup. |
+| 2 | Blocks | `wp_post_create` | yes | yes | Create post/page/CPT with blocks or HTML and meta fields. |
+| 2 | Skills | `wp_skill_save` | no | — | Save agent SOP / playbook in WordPress database. |
+| 2 | Database | `wp_db_query` | yes (writes) | yes (writes) | Run SQL query (SELECT is read-only; write queries require packet). |
+| 2 | Rollback | `wp_rollback` | yes | yes | Restore previous state for any snapshot (option, meta, content, file). |
+| 2 | Async CLI | `wp_cli_job_cancel` | no | — | Terminate background WP-CLI job. |
+| 3 | Escape | `wp_eval` | yes | yes | Run arbitrary PHP via `wp eval`. **SSH + admin only.** Escape hatch. |
+| 3 | Async CLI | `wp_cli_run` | yes | yes | Synchronous WP-CLI command execution (SSH + admin only). |
+| 3 | Async CLI | `wp_cli_job_start` | yes | yes | Launch long-running WP-CLI job in background (nohup). |
+| — | Packet | `packet_open` | — | — | **Propose** a change packet bound to `{site, verb, target, change_digest}`. |
+| — | Packet | `packet_approve` | — | — | **Authorize** a proposed packet. Only approved packets satisfy the guard. |
+| — | Packet | `packet_log` | — | — | Append a note to an open packet. |
+| — | Packet | `packet_close` | — | — | Close a packet; optional durable re-verify. |
+| — | Packet | `packet_list` | — | — | List packets by site / open / status. |
+| — | Registry | `site_register` | — | — | Register a site's SSH or companion-plugin connection info. |
 
 "Guarded" means: `apply=True` raises `PacketRequiredError` unless there's an **approved**, currently-open packet for that exact site, target, mutation payload, and pre-change state (or `WPGUARD_BYPASS_GUARD=1` is set). Legacy packets without a digest remain supported during the alpha transition.
 

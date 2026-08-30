@@ -93,3 +93,16 @@ def run_eval(site: SiteConfig, php_code: str, timeout: int = 60) -> CommandResul
     wp_eval through a companion_plugin-transport site.
     """
     return run_wp_cli(site, ["eval", php_code], timeout=timeout)
+
+
+def run_ssh_raw(site: SiteConfig, shell_cmd: str, timeout: int = 60) -> CommandResult:
+    """Run an arbitrary shell command on the remote host within the site's wp_path."""
+    wp_path = site.effective_wp_path()
+    if wp_path:
+        remote_command = f"cd {shlex.quote(wp_path)} && {shell_cmd}"
+    else:
+        remote_command = shell_cmd
+    ssh_cmd = _build_ssh_command(site, remote_command)
+    proc = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=timeout)
+    return CommandResult(returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
+

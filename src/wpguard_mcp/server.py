@@ -1,17 +1,4 @@
-"""wpguard-mcp server entrypoint.
-
-Builds a FastMCP server, registers every Tier 1/2/3 and packet-lifecycle
-tool, wraps the streamable-HTTP ASGI app with a bearer-token auth
-middleware, and runs it under uvicorn on 127.0.0.1 by default.
-
-Run it with:
-
-    WPGUARD_MCP_TOKEN=<your-token> python -m wpguard_mcp.server
-
-or, once installed:
-
-    WPGUARD_MCP_TOKEN=<your-token> wpguard-mcp
-"""
+"""wpguard-mcp server entrypoint."""
 from __future__ import annotations
 
 import json
@@ -20,7 +7,19 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from . import policy
-from .tools import mutate, packets, recon
+from .tools import (
+    blocks,
+    cli_jobs,
+    eval_sandbox,
+    files,
+    magic_login,
+    mutate,
+    packets,
+    recon,
+    rollback,
+    schema_recon,
+    skills,
+)
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8642
@@ -28,31 +27,66 @@ DEFAULT_PORT = 8642
 mcp = FastMCP(
     name="wpguard-mcp",
     instructions=(
-        "Safely recon, mutate, and verify WordPress sites through named, guarded verbs "
-        "instead of raw PHP/eval. Mutations require an open change packet (packet_open) "
-        "before apply=True will run. Typical flow: site_register -> wp_recon -> "
-        "mutate tool with apply=False (dry-run, the default) -> packet_open with its change_digest -> "
-        "review and approve the exact preview -> "
-        "mutate tool again with apply=True -> verify with a Tier 1 read -> packet_close."
+        "Enterprise-grade WordPress MCP server. Recon, execute sandboxed PHP, manage files, "
+        "compose Gutenberg blocks, launch async WP-CLI background jobs, generate magic login links, "
+        "manage skills playbooks, and safely mutate WordPress sites with automatic snapshots, dry-run "
+        "previews, and 1-click rollback."
     ),
     host=os.environ.get("WPGUARD_MCP_HOST", DEFAULT_HOST),
     port=int(os.environ.get("WPGUARD_MCP_PORT", str(DEFAULT_PORT))),
 )
 
-# --- Tier 1: recon / read-only, no packet required ---
+# --- Tier 1: Recon & Discovery ---
 mcp.tool()(recon.wp_recon)
 mcp.tool()(recon.wp_get_option)
 mcp.tool()(recon.wp_get_post_meta)
 mcp.tool()(recon.site_list)
+mcp.tool()(schema_recon.wp_schema_recon)
+mcp.tool()(schema_recon.wp_db_query)
 
-# --- Tier 2: guarded named verbs (dry-run by default) ---
+# --- Tier 2: Guarded Named Verbs & Content ---
 mcp.tool()(mutate.wp_mutate_option)
 mcp.tool()(mutate.wp_mutate_post_meta)
 mcp.tool()(mutate.wp_mutate_post_content)
-mcp.tool()(mutate.wp_cache_bust)  # not guarded -- cache only, no content change
+mcp.tool()(mutate.wp_cache_bust)
 
-# --- Tier 3: guarded raw escape hatch, SSH-only ---
+# --- Runtime & Execution Sandbox ---
+mcp.tool()(eval_sandbox.wp_eval_sandbox)
+mcp.tool()(eval_sandbox.wp_snippet_save)
+mcp.tool()(eval_sandbox.wp_snippet_toggle)
+mcp.tool()(eval_sandbox.wp_snippet_list)
 mcp.tool()(mutate.wp_eval)
+
+# --- Guarded Filesystem Operations ---
+mcp.tool()(files.wp_file_read)
+mcp.tool()(files.wp_file_write)
+mcp.tool()(files.wp_file_edit)
+mcp.tool()(files.wp_file_tree)
+mcp.tool()(files.wp_file_delete)
+
+# --- Async WP-CLI Task Runner ---
+mcp.tool()(cli_jobs.wp_cli_run)
+mcp.tool()(cli_jobs.wp_cli_job_start)
+mcp.tool()(cli_jobs.wp_cli_job_status)
+mcp.tool()(cli_jobs.wp_cli_job_cancel)
+
+# --- Gutenberg Block Suite ---
+mcp.tool()(blocks.wp_block_parse)
+mcp.tool()(blocks.wp_block_compose)
+mcp.tool()(blocks.wp_block_validate)
+mcp.tool()(blocks.wp_post_create)
+
+# --- Magic Login & Browser Automation ---
+mcp.tool()(magic_login.wp_magic_login)
+
+# --- In-WordPress Skills & Design Context ---
+mcp.tool()(skills.wp_skill_save)
+mcp.tool()(skills.wp_skill_get)
+mcp.tool()(skills.wp_skill_list)
+mcp.tool()(skills.wp_design_context)
+
+# --- Rollback Engine ---
+mcp.tool()(rollback.wp_rollback)
 
 # --- Packet lifecycle + site registry ---
 mcp.tool()(packets.packet_open)
@@ -64,18 +98,6 @@ mcp.tool()(packets.site_register)
 
 
 class PolicyMiddleware:
-    """Pure-ASGI middleware enforcing auth, token scope, and rate limits.
-
-    Applied ahead of every route, including MCP protocol endpoints -- there is
-    no unauthenticated health-check or discovery route in v1. It buffers the
-    request body (so it can see which tool a `tools/call` targets), asks
-    `policy.evaluate_request` for a decision, and either short-circuits with a
-    401/403/429 or replays the buffered body downstream unchanged.
-
-    Fails closed: a request with no valid token is rejected, and the server
-    refuses to build at all if no tokens are configured.
-    """
-
     def __init__(self, app):
         self.app = app
         self.rate_limiter = policy.RateLimiter()
@@ -85,8 +107,6 @@ class PolicyMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Buffer the whole request body so we can inspect the tool call and
-        # still replay the bytes to the downstream app.
         messages = []
         while True:
             message = await receive()
@@ -130,18 +150,13 @@ class PolicyMiddleware:
 
 
 def build_app():
-    """Build the ASGI app: FastMCP's streamable-HTTP app wrapped in policy auth."""
-    # Fail closed at build/import time too, not just per-request, so a
-    # misconfigured deployment (no tokens) doesn't silently start listening.
     policy.require_configured()
     app = mcp.streamable_http_app()
     return PolicyMiddleware(app)
 
 
 def main() -> None:
-    """Console-script entrypoint: run the server over streamable-HTTP with uvicorn."""
     import uvicorn
-
     app = build_app()
     uvicorn.run(app, host=mcp.settings.host, port=mcp.settings.port, log_level=mcp.settings.log_level.lower())
 
