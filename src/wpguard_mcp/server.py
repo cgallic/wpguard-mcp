@@ -131,7 +131,7 @@ class PolicyMiddleware:
             try:
                 return next(replay)
             except StopIteration:
-                return {"type": "http.request", "body": b"", "more_body": False}
+                return await receive()
 
         await self.app(scope, replay_receive, send)
 

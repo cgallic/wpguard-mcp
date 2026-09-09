@@ -211,3 +211,23 @@ def test_middleware_rejects_missing_token():
     mw = PolicyMiddleware(stub)
     status, _ = _run_request(mw, None, b"")
     assert status == 401
+
+
+def test_middleware_preserves_disconnect_after_body(monkeypatch):
+    monkeypatch.setenv(policy.SCOPE_TOKEN_ENVS["recon"], "r1")
+    body = {"type": "http.request", "body": b'{"method":"initialize"}', "more_body": False}
+    messages = iter([body, {"type": "http.disconnect"}])
+
+    async def receive():
+        return next(messages)
+
+    async def send(message):
+        pass
+
+    async def streaming_app(scope, receive, send):
+        assert await receive() == body
+        # SSE waits on the actual connection after consuming the request body.
+        assert await receive() == {"type": "http.disconnect"}
+
+    scope = {"type": "http", "headers": [(b"authorization", b"Bearer r1")]}
+    asyncio.run(PolicyMiddleware(streaming_app)(scope, receive, send))
