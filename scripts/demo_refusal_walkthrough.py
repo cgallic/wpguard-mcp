@@ -28,6 +28,7 @@ snapshot ids, and timestamps (see expect_refusal()'s assertions, which make
 the script itself fail loudly if a step that's supposed to be refused ever
 silently succeeds instead).
 """
+
 from __future__ import annotations
 
 import json
@@ -53,7 +54,6 @@ from wpguard_mcp.config import SiteConfig  # noqa: E402
 from wpguard_mcp.guard import ConflictError, PacketRequiredError, PacketStore, SnapshotStore  # noqa: E402
 from wpguard_mcp.tools import mutate, packets, recon  # noqa: E402
 from wpguard_mcp.transports import ssh_wpcli  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Fake WordPress site + fake SSH transport.

@@ -1,8 +1,9 @@
 """WP-CLI execution and asynchronous background task runner."""
+
 from __future__ import annotations
 
 import uuid
-from typing import Sequence
+from collections.abc import Sequence
 
 from ..config import get_site_registry
 from ..guard import get_packet_store, require_approved_packet
@@ -27,7 +28,7 @@ def wp_cli_run(site: str, args: Sequence[str], apply: bool = False) -> dict:
         }
 
     packet = require_approved_packet(get_packet_store(), site)
-    res = ssh_wpcli.run_wp_cli(site_config, args)
+    res = ssh_wpcli.run_wp_cli(site_config, list(args))
     get_packet_store().log(packet.id, f"applied wp_cli_run({' '.join(args)})")
 
     return {

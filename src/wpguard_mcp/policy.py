@@ -48,6 +48,7 @@ SCOPE_LEVELS = {"recon": 1, "mutate": 2, "admin": 3}
 TOOL_TIERS = {
     # Tier 1: read-only recon & discovery
     "wp_recon": 1,
+    "wp_site_context": 1,
     "wp_get_option": 1,
     "wp_get_post_meta": 1,
     "site_list": 1,

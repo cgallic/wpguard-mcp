@@ -1,4 +1,5 @@
 """In-WordPress skills repository & brand design tokens context."""
+
 from __future__ import annotations
 
 from ..config import get_site_registry
@@ -12,6 +13,7 @@ def wp_skill_save(site: str, name: str, content: str, description: str = "") -> 
 
     if site_config.transport == "ssh":
         import json
+
         php = (
             f"$skills = get_option('wpguard_skills', []); "
             f"$skills[{repr(name)}] = ['name' => {repr(name)}, 'description' => {repr(description)}, "
@@ -35,6 +37,7 @@ def wp_skill_get(site: str, name: str) -> dict:
 
     if site_config.transport == "ssh":
         import json
+
         php = (
             f"$skills = get_option('wpguard_skills', []); "
             f"echo json_encode($skills[{repr(name)}] ?? ['error' => 'skill not found']);"
@@ -53,6 +56,7 @@ def wp_skill_list(site: str) -> dict:
 
     if site_config.transport == "ssh":
         import json
+
         php = (
             "$skills = get_option('wpguard_skills', []); $sum = []; "
             "foreach ($skills as $k => $v) { $sum[] = ['name' => $k, 'description' => $v['description'] ?? '']; } "
@@ -72,12 +76,14 @@ def wp_design_context(site: str) -> dict:
 
     if site_config.transport == "ssh":
         import json
+
         php = (
             "$t = wp_get_theme(); "
             "$s = function_exists('wp_get_global_settings') ? wp_get_global_settings() : []; "
             "$st = function_exists('wp_get_global_styles') ? wp_get_global_styles() : []; "
             "echo json_encode(['theme' => $t->get('Name'), 'is_block' => wp_is_block_theme(), "
-            "'colors' => $s['color']['palette']['theme'] ?? [], 'fonts' => $s['typography']['fontFamilies']['theme'] ?? [], 'styles' => $st]);"
+            "'colors' => $s['color']['palette']['theme'] ?? [], "
+            "'fonts' => $s['typography']['fontFamilies']['theme'] ?? [], 'styles' => $st]);"
         )
         res = ssh_wpcli.run_wp_cli(site_config, ["eval", php])
         return {"site": site, "design_context": json.loads(res.stdout.strip())}

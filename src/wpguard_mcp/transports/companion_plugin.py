@@ -93,4 +93,6 @@ def call(site: SiteConfig, command: str, args: dict[str, Any] | None = None, tim
     data = response.json()
     if isinstance(data, dict) and data.get("ok") is False:
         raise CompanionPluginError(f"companion plugin reported an error: {data.get('error')}")
-    return data.get("result") if isinstance(data, dict) else data
+    # Current companion routes return direct WP_REST_Response payloads;
+    # older bridges wrap the payload in a result envelope.
+    return data["result"] if isinstance(data, dict) and "result" in data else data

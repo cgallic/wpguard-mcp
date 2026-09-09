@@ -1,4 +1,5 @@
 """Deep Schema Recon & Database Explorer tools."""
+
 from __future__ import annotations
 
 from ..config import get_site_registry
@@ -13,6 +14,7 @@ def wp_schema_recon(site: str) -> dict:
 
     if site_config.transport == "ssh":
         import json
+
         php = (
             "$pts = get_post_types(['public' => true], 'names'); "
             "$taxs = get_taxonomies(['public' => true], 'names'); "
@@ -26,7 +28,8 @@ def wp_schema_recon(site: str) -> dict:
             "  if (stripos($p, 'woocommerce') !== false) $builders[] = 'WooCommerce'; "
             "  if (stripos($p, 'acf') !== false) $builders[] = 'ACF'; "
             "} "
-            "echo json_encode(['post_types' => array_values($pts), 'taxonomies' => array_values($taxs), 'builders' => array_values(array_unique($builders))]);"
+            "echo json_encode(['post_types' => array_values($pts), 'taxonomies' => array_values($taxs), "
+            "'builders' => array_values(array_unique($builders))]);"
         )
         res = ssh_wpcli.run_wp_cli(site_config, ["eval", php])
         return {"site": site, "schema": json.loads(res.stdout.strip())}

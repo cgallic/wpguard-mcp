@@ -1,4 +1,5 @@
 """1-Click Rollback Engine: restores previous state from the snapshot ledger."""
+
 from __future__ import annotations
 
 from ..config import get_site_registry
@@ -46,14 +47,20 @@ def wp_rollback(site: str, snapshot_id: str, apply: bool = False) -> dict:
         if site_config.transport == "ssh":
             ssh_wpcli.run_wp_cli(site_config, ["post", "meta", "update", str(post_id), meta_key, str(prev_val or "")])
         else:
-            companion_plugin.call(site_config, "update_post_meta", {"post_id": post_id, "meta_key": meta_key, "new_value": prev_val or ""})
+            companion_plugin.call(
+                site_config, "update_post_meta", {"post_id": post_id, "meta_key": meta_key, "new_value": prev_val or ""}
+            )
     elif tool == "wp_mutate_post_content":
         parts = target.split(":")
         post_id = int(parts[1])
         if site_config.transport == "ssh":
             ssh_wpcli.run_wp_cli(site_config, ["post", "update", str(post_id), f"--post_content={prev_val}"])
         else:
-            companion_plugin.call(site_config, "search_replace_post_content", {"post_id": post_id, "search": "", "replace": prev_val, "apply": True})
+            companion_plugin.call(
+                site_config,
+                "search_replace_post_content",
+                {"post_id": post_id, "search": "", "replace": prev_val, "apply": True},
+            )
     elif tool in ("wp_file_write", "wp_file_edit", "wp_file_delete"):
         path = target.replace("file:", "")
         if site_config.transport == "ssh":

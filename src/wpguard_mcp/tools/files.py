@@ -1,4 +1,5 @@
 """Guarded Filesystem Management tools: read, write, edit, tree, and delete."""
+
 from __future__ import annotations
 
 import difflib
@@ -109,7 +110,9 @@ def wp_file_edit(site: str, path: str, target: str, replacement: str, apply: boo
             packet_id=packet.id, site=site, tool="wp_file_edit", target=f"file:{path}", previous_value=current_content
         )
         ssh_wpcli.run_ssh_raw(site_config, f"cat << 'EOF' > {path}\n{new_content}\nEOF")
-        get_packet_store().log(packet.id, f"applied wp_file_edit({path}, {match_count} matches) -- snapshot {snapshot.id}")
+        get_packet_store().log(
+            packet.id, f"applied wp_file_edit({path}, {match_count} matches) -- snapshot {snapshot.id}"
+        )
         return {
             "site": site,
             "path": path,
@@ -120,7 +123,9 @@ def wp_file_edit(site: str, path: str, target: str, replacement: str, apply: boo
             "snapshot_id": snapshot.id,
         }
     else:
-        preview = companion_plugin.call(site_config, "file_edit", {"path": path, "target": target, "replacement": replacement, "apply": False})
+        preview = companion_plugin.call(
+            site_config, "file_edit", {"path": path, "target": target, "replacement": replacement, "apply": False}
+        )
         match_count = (preview or {}).get("match_count", 0)
 
         if not apply:
@@ -134,10 +139,18 @@ def wp_file_edit(site: str, path: str, target: str, replacement: str, apply: boo
 
         packet = require_approved_packet(get_packet_store(), site)
         snapshot = get_snapshot_store().record(
-            packet_id=packet.id, site=site, tool="wp_file_edit", target=f"file:{path}", previous_value=(preview or {}).get("previous_content")
+            packet_id=packet.id,
+            site=site,
+            tool="wp_file_edit",
+            target=f"file:{path}",
+            previous_value=(preview or {}).get("previous_content"),
         )
-        companion_plugin.call(site_config, "file_edit", {"path": path, "target": target, "replacement": replacement, "apply": True})
-        get_packet_store().log(packet.id, f"applied wp_file_edit({path}, {match_count} matches) -- snapshot {snapshot.id}")
+        companion_plugin.call(
+            site_config, "file_edit", {"path": path, "target": target, "replacement": replacement, "apply": True}
+        )
+        get_packet_store().log(
+            packet.id, f"applied wp_file_edit({path}, {match_count} matches) -- snapshot {snapshot.id}"
+        )
         return {
             "site": site,
             "path": path,
@@ -182,7 +195,11 @@ def wp_file_delete(site: str, path: str, apply: bool = False) -> dict:
     else:
         preview = companion_plugin.call(site_config, "file_delete", {"path": path, "apply": False})
         snapshot = get_snapshot_store().record(
-            packet_id=packet.id, site=site, tool="wp_file_delete", target=f"file:{path}", previous_value=(preview or {}).get("previous_content")
+            packet_id=packet.id,
+            site=site,
+            tool="wp_file_delete",
+            target=f"file:{path}",
+            previous_value=(preview or {}).get("previous_content"),
         )
         companion_plugin.call(site_config, "file_delete", {"path": path, "apply": True})
 

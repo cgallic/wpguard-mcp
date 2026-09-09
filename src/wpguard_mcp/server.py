@@ -18,6 +18,7 @@ from .tools import (
     recon,
     rollback,
     schema_recon,
+    site_context,
     skills,
 )
 
@@ -38,6 +39,7 @@ mcp = FastMCP(
 
 # --- Tier 1: Recon & Discovery ---
 mcp.tool()(recon.wp_recon)
+mcp.tool()(site_context.wp_site_context)
 mcp.tool()(recon.wp_get_option)
 mcp.tool()(recon.wp_get_post_meta)
 mcp.tool()(recon.site_list)

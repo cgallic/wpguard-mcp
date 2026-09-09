@@ -176,6 +176,7 @@ A token calling above its scope gets a clear `403`; hammering the server past th
 | Tier | Category | Tool | Guarded? | Apply flag? | What it does |
 |---|---|---|---|---|---|
 | 1 | Recon | `wp_recon` | no | — | Core version, active plugins/theme, site URL. |
+| 1 | Recon | `wp_site_context` | no | — | Recognize installed/active plugins, expose inventory coverage and native integration limits, suggest relevant read tools. |
 | 1 | Recon | `wp_get_option` | no | — | Read one WP option (wrapped as untrusted content). |
 | 1 | Recon | `wp_get_post_meta` | no | — | Read one post-meta value (wrapped as untrusted content). |
 | 1 | Recon | `wp_schema_recon` | no | — | Enumerate CPTs, taxonomies, ACF field groups, active builders. |

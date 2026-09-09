@@ -1,4 +1,5 @@
 """Sandboxed PHP Execution & Snippet Lifecycle Manager tools."""
+
 from __future__ import annotations
 
 from ..config import get_site_registry
@@ -28,10 +29,12 @@ def wp_eval_sandbox(site: str, php_code: str, apply: bool = False) -> dict:
             "try { $res = eval(" + repr(php_code) + "); } catch (Throwable $t) { "
             "$err = ['message' => $t->getMessage(), 'line' => $t->getLine()]; } "
             "$out = ob_get_clean(); $dur = round((microtime(true) - $start) * 1000, 2); "
-            "echo json_encode(['success' => ($err === null), 'output' => $out, 'error' => $err, 'duration_ms' => $dur]);"
+            "echo json_encode(['success' => ($err === null), 'output' => $out, "
+            "'error' => $err, 'duration_ms' => $dur]);"
         )
         res = ssh_wpcli.run_wp_cli(site_config, ["eval", wrapped_code])
         import json
+
         try:
             exec_result = json.loads(res.stdout.strip())
         except Exception:
@@ -69,16 +72,25 @@ def wp_snippet_save(site: str, name: str, code: str, active: bool = True, apply:
     if site_config.transport == "ssh":
         filename = f"{name}.php" if active else f"{name}.disabled"
         target_path = f"wp-content/mu-plugins/wpguard-snippets/{filename}"
-        header = f"<?php\n/**\n * WPGuard Managed Snippet: {name}\n * Status: {'Active' if active else 'Disabled'}\n */\n\n"
+        header = (
+            f"<?php\n/**\n * WPGuard Managed Snippet: {name}\n * Status: {'Active' if active else 'Disabled'}\n */\n\n"
+        )
         full_content = header + code.strip()
-        
+
         prev_res = ssh_wpcli.run_ssh_raw(site_config, f"cat {target_path} 2>/dev/null || true")
         previous_val = prev_res.stdout if prev_res.stdout else None
-        
+
         snapshot = get_snapshot_store().record(
-            packet_id=packet.id, site=site, tool="wp_snippet_save", target=f"snippet:{name}", previous_value=previous_val
+            packet_id=packet.id,
+            site=site,
+            tool="wp_snippet_save",
+            target=f"snippet:{name}",
+            previous_value=previous_val,
         )
-        ssh_wpcli.run_ssh_raw(site_config, f"mkdir -p wp-content/mu-plugins/wpguard-snippets && cat << 'EOF' > {target_path}\n{full_content}\nEOF")
+        ssh_wpcli.run_ssh_raw(
+            site_config,
+            f"mkdir -p wp-content/mu-plugins/wpguard-snippets && cat << 'EOF' > {target_path}\n{full_content}\nEOF",
+        )
         get_packet_store().log(packet.id, f"applied wp_snippet_save({name}) -- snapshot {snapshot.id}")
         return {
             "site": site,
@@ -95,7 +107,11 @@ def wp_snippet_save(site: str, name: str, code: str, active: bool = True, apply:
             site_config, "snippet_save", {"name": name, "code": code, "active": active, "apply": True}
         )
         snapshot = get_snapshot_store().record(
-            packet_id=packet.id, site=site, tool="wp_snippet_save", target=f"snippet:{name}", previous_value=(res or {}).get("previous_content")
+            packet_id=packet.id,
+            site=site,
+            tool="wp_snippet_save",
+            target=f"snippet:{name}",
+            previous_value=(res or {}).get("previous_content"),
         )
         get_packet_store().log(packet.id, f"applied wp_snippet_save({name}) -- snapshot {snapshot.id}")
         return {
