@@ -49,6 +49,11 @@ TOOL_TIERS = {
     # Tier 1: read-only recon & discovery
     "wp_recon": 1,
     "wp_site_context": 1,
+    "wp_correction_list": 1,
+    "wp_history_search": 1,
+    "wp_history_packet": 1,
+    "wp_history_patterns": 1,
+    "wp_history_episodes": 1,
     "wp_get_option": 1,
     "wp_get_post_meta": 1,
     "site_list": 1,
@@ -88,6 +93,8 @@ TOOL_TIERS = {
     "wp_cli_job_cancel": 2,
     # Tier 3: raw escape hatch
     "wp_eval": 3,
+    "wp_correction_record": 3,
+    "wp_correction_retire": 3,
     "wp_cli_run": 3,
     "wp_cli_job_start": 3,
 }

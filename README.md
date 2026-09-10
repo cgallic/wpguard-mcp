@@ -331,6 +331,81 @@ site_register(name="bedrock-site", transport="ssh", ssh_host="example.com",
                wp_path="/srv/app", layout="bedrock")   # -> wp-cli --path=/srv/app/web/wp
 ```
 
+## Learn from recurring corrections
+
+Import previous SiteChange work and record what a future edit must preserve.
+The history stays private under `WPGUARD_STATE_DIR`; importing it never contacts
+a WordPress site or changes its content.
+
+```bash
+python -m wpguard_mcp.history import \
+  --packets sitechange_packets_all.csv \
+  --status sitechange_status_by_client.csv \
+  --categories sitechange_category_breakdown.csv \
+  --human-requested-basis "The operator confirmed repeated change types were human-requested."
+```
+
+Each import keeps the original rows, file hashes, and source references. Repeating
+the same import adds no duplicates; changed records retain their previous versions.
+`wp_history_patterns` surfaces recurring categories and their human-requested basis.
+`wp_history_search(client_slug=..., query=...)` and `wp_history_packet` retrieve
+the originating records for an exact client slug. Free-text site labels and client
+aliases are preserved without being converted into execution destinations.
+
+Import richer session exports alongside the packet index:
+
+```bash
+python -m wpguard_mcp.history import-episodes \
+  --episodes correction_episodes.jsonl \
+  --lessons top_lessons.md \
+  --coverage source_index_and_coverage.md
+```
+
+`wp_history_episodes(client_slug=..., query=...)` retrieves the full original
+correction sequence, exceptions, and source evidence. Here `client_slug` must
+exactly match the episode's `client` value; no alias mapping is inferred between
+exports. Lesson and coverage documents are preserved privately with their hashes.
+Suggested checks in those documents remain source material, never executable code.
+
+To teach an executable correction, call `wp_correction_record` with:
+
+- A registered site and exact target, such as `post:42:content`,
+  `post_meta:42:custom_field`, or `option:blogname`. Post body and post-meta
+  targets use separate namespaces, even when a meta key is literally `content`.
+- The correction, source reference, and either `human_requested_basis` or
+  `acceptance_ref`. These are caller attestations, not independently verified approvals.
+- A check, its expected value, and both `rejected_value` and `accepted_value`.
+  Registration must reproduce a failure on the rejected example and a pass on
+  the accepted example. A status label alone cannot define this check.
+
+| Check kind | What it checks |
+|---|---|
+| `contains` / `not_contains` | Presence or absence of an exact text fragment. |
+| `equals` | An exact scalar value. |
+| `json_pointer_equals` | A structured field at a JSON Pointer `path`. |
+| `html_link` | An anchor with the expected `{ "href": "...", "text": "..." }`, allowing nested markup and whitespace differences. |
+
+`wp_site_context` surfaces active corrections. `wp_correction_list` returns their
+examples and provenance. Option, post-meta, and post-content mutation previews
+include correction results; applying an edit that fails a check, or cannot be
+evaluated against an applicable check, stops before the write and snapshot.
+This also applies when the existing packet guard is bypassed for development.
+Edits without applicable corrections report `not_covered`, and continue through
+the normal packet guard. Conflicting corrections are all evaluated.
+
+Record and retire tools require an admin token. `wp_correction_retire` keeps the
+superseded correction and the reason in the ledger. It does not erase the history.
+Targets match literally; wildcard characters never expand to other pages or clients.
+
+Companion content checks require the updated companion plugin: its preview
+returns the original content, and its apply route rejects a changed source digest.
+An empty search is rejected consistently by both transports.
+
+Coverage is currently limited to those three named mutation tools and exact
+targets. Raw PHP, file changes, new posts, rollback, rendered layout, visibility,
+link health, and subsequent external WordPress edits are not checked by this layer.
+The HTML check validates markup structure; browser verification remains separate.
+
 ## Local state
 
 Everything wpguard-mcp remembers lives under `WPGUARD_STATE_DIR` (default `./state`), as plain JSON — no database dependency for v1:
@@ -339,6 +414,9 @@ Everything wpguard-mcp remembers lives under `WPGUARD_STATE_DIR` (default `./sta
 state/
 ├── config/
 │   └── sites.json         # registered sites (connection metadata only, no secrets)
+├── history/               # immutable private CSV imports with source provenance
+├── corrections/
+│   └── corrections.jsonl  # correction records and retirement events
 └── packets/
     ├── packets.jsonl       # append-only change-packet ledger
     └── snapshots.jsonl      # append-only pre-write snapshots, keyed by packet

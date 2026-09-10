@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 
 from ..config import get_site_registry
+from ..corrections import assert_corrections_allow, evaluate_corrections
 from ..guard import (
     ConflictError,
     build_change_digest,
@@ -93,6 +94,7 @@ def wp_mutate_option(
     payload = {"option_name": option_name, "new_value": new_value}
     current_etag = _etag(previous_value)
     change_digest = _change_digest(site, "wp_mutate_option", target, current_etag, payload)
+    corrections = evaluate_corrections(site, target, new_value)
     if not apply:
         return {
             "site": site,
@@ -103,9 +105,11 @@ def wp_mutate_option(
             "proposed_value": new_value,
             "etag": current_etag,
             "change_digest": change_digest,
+            "corrections": corrections,
         }
 
     _check_etag(expected_etag, previous_value)
+    assert_corrections_allow(corrections)
     packet = require_approved_packet(
         get_packet_store(), site, target=target, change_digest=change_digest
     )
@@ -164,6 +168,7 @@ def wp_mutate_post_meta(
     payload = {"post_id": post_id, "meta_key": meta_key, "new_value": new_value}
     current_etag = _etag(previous_value)
     change_digest = _change_digest(site, "wp_mutate_post_meta", target, current_etag, payload)
+    corrections = evaluate_corrections(site, f"post_meta:{post_id}:{meta_key}", new_value)
     if not apply:
         return {
             "site": site,
@@ -175,9 +180,11 @@ def wp_mutate_post_meta(
             "proposed_value": new_value,
             "etag": current_etag,
             "change_digest": change_digest,
+            "corrections": corrections,
         }
 
     _check_etag(expected_etag, previous_value)
+    assert_corrections_allow(corrections)
     packet = require_approved_packet(
         get_packet_store(), site, target=target, change_digest=change_digest
     )
@@ -230,6 +237,8 @@ def wp_mutate_post_content(
     Dry-run returns the number of matches found and an `etag` of the current
     content, and does not touch the post.
     """
+    if not search:
+        raise ValueError("search must not be empty")
     registry = get_site_registry()
     site_config = registry.get(site)
 
@@ -246,6 +255,7 @@ def wp_mutate_post_content(
         change_digest = _change_digest(
             site, "wp_mutate_post_content", target, current_etag, payload
         )
+        corrections = evaluate_corrections(site, target, proposed_content)
         if not apply:
             return {
                 "site": site,
@@ -257,9 +267,11 @@ def wp_mutate_post_content(
                 "match_count": match_count,
                 "etag": current_etag,
                 "change_digest": change_digest,
+                "corrections": corrections,
             }
 
         _check_etag(expected_etag, current_content)
+        assert_corrections_allow(corrections)
         packet = require_approved_packet(
             get_packet_store(), site, target=target, change_digest=change_digest
         )
@@ -304,6 +316,16 @@ def wp_mutate_post_content(
     change_digest = _change_digest(
         site, "wp_mutate_post_content", target, current_etag, payload
     )
+    companion_new_content = (
+        previous_content.replace(search, replace) if isinstance(previous_content, str) else None
+    )
+    corrections = evaluate_corrections(site, target, companion_new_content)
+    if corrections["checks"] and (preview or {}).get("supports_expected_content_sha256") is not True:
+        corrections = {
+            **corrections,
+            "status": "unknown",
+            "reason": "Companion cannot verify the checked content is unchanged; update the companion plugin",
+        }
     if not apply:
         return {
             "site": site,
@@ -315,14 +337,13 @@ def wp_mutate_post_content(
             "match_count": match_count,
             "etag": current_etag,
             "change_digest": change_digest,
+            "corrections": corrections,
         }
 
     _check_etag(expected_etag, previous_content)
+    assert_corrections_allow(corrections)
     packet = require_approved_packet(
         get_packet_store(), site, target=target, change_digest=change_digest
-    )
-    companion_new_content = (
-        previous_content.replace(search, replace) if isinstance(previous_content, str) else None
     )
     snapshot = get_snapshot_store().record(
         packet_id=packet.id,
@@ -333,10 +354,13 @@ def wp_mutate_post_content(
         new_value=companion_new_content,
         reread=["post_content", post_id],
     )
+    apply_args = {"post_id": post_id, "search": search, "replace": replace, "apply": True}
+    if isinstance(previous_content, str):
+        apply_args["expected_content_sha256"] = hashlib.sha256(previous_content.encode("utf-8")).hexdigest()
     result = companion_plugin.call(
         site_config,
         "search_replace_post_content",
-        {"post_id": post_id, "search": search, "replace": replace, "apply": True},
+        apply_args,
     )
     get_packet_store().log(
         packet.id, f"applied wp_mutate_post_content(post {post_id}, {match_count} matches) -- snapshot {snapshot.id}"

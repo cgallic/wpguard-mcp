@@ -38,4 +38,6 @@ jobs:
         run: mypy
 
       - name: Pytest
-        run: pytest -q
+        run: |
+          php -v
+          pytest -q

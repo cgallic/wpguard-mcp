@@ -135,11 +135,17 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 				), 200 );
 
 			case 'get_option':
-				$opt_name = sanitize_text_field( $args['option_name'] ?? '' );
+				$opt_name = $args['option_name'] ?? '';
+				if ( ! is_string( $opt_name ) || '' === $opt_name || sanitize_text_field( $opt_name ) !== $opt_name ) {
+					return new WP_REST_Response( array( 'error' => 'Option name must be an exact nonempty sanitized string.' ), 400 );
+				}
 				return new WP_REST_Response( array( 'option_name' => $opt_name, 'value' => get_option( $opt_name, null ) ), 200 );
 
 			case 'update_option':
-				$opt_name = sanitize_text_field( $args['option_name'] ?? '' );
+				$opt_name = $args['option_name'] ?? '';
+				if ( ! is_string( $opt_name ) || '' === $opt_name || sanitize_text_field( $opt_name ) !== $opt_name ) {
+					return new WP_REST_Response( array( 'error' => 'Option name must be an exact nonempty sanitized string.' ), 400 );
+				}
 				$new_val  = $args['new_value'] ?? '';
 				$prev_val = get_option( $opt_name, null );
 				$updated  = update_option( $opt_name, $new_val );
@@ -147,12 +153,18 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 
 			case 'get_post_meta':
 				$pid = (int) ( $args['post_id'] ?? 0 );
-				$key = sanitize_text_field( $args['meta_key'] ?? '' );
+				$key = $args['meta_key'] ?? '';
+				if ( ! is_string( $key ) || '' === $key || sanitize_text_field( $key ) !== $key ) {
+					return new WP_REST_Response( array( 'error' => 'Meta key must be an exact nonempty sanitized string.' ), 400 );
+				}
 				return new WP_REST_Response( array( 'post_id' => $pid, 'meta_key' => $key, 'value' => get_post_meta( $pid, $key, true ) ), 200 );
 
 			case 'update_post_meta':
 				$pid = (int) ( $args['post_id'] ?? 0 );
-				$key = sanitize_text_field( $args['meta_key'] ?? '' );
+				$key = $args['meta_key'] ?? '';
+				if ( ! is_string( $key ) || '' === $key || sanitize_text_field( $key ) !== $key ) {
+					return new WP_REST_Response( array( 'error' => 'Meta key must be an exact nonempty sanitized string.' ), 400 );
+				}
 				$val = $args['new_value'] ?? '';
 				$prev = get_post_meta( $pid, $key, true );
 				$updated = update_post_meta( $pid, $key, $val );
@@ -163,6 +175,9 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 				$search = (string) ( $args['search'] ?? '' );
 				$replace = (string) ( $args['replace'] ?? '' );
 				$apply = (bool) ( $args['apply'] ?? false );
+				if ( '' === $search ) {
+					return new WP_REST_Response( array( 'error' => 'Search must not be empty.' ), 400 );
+				}
 				$post = get_post( $pid );
 				if ( ! $post ) {
 					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
@@ -171,9 +186,23 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 				$matches = substr_count( $content, $search );
 				$new_content = str_replace( $search, $replace, $content );
 				if ( $apply ) {
+					$expected = $args['expected_content_sha256'] ?? '';
+					if ( ! is_string( $expected ) ) {
+						return new WP_REST_Response( array( 'error' => 'Expected content digest must be a string.' ), 400 );
+					}
+					if ( '' !== $expected && ! hash_equals( hash( 'sha256', $content ), $expected ) ) {
+						return new WP_REST_Response( array( 'error' => 'Post content changed after preview; preview again.' ), 409 );
+					}
 					wp_update_post( array( 'ID' => $pid, 'post_content' => $new_content ) );
 				}
-				return new WP_REST_Response( array( 'post_id' => $pid, 'matches' => $matches, 'applied' => $apply ), 200 );
+				return new WP_REST_Response( array(
+					'post_id' => $pid,
+					'matches' => $matches,
+					'match_count' => $matches,
+					'previous_content' => $content,
+					'supports_expected_content_sha256' => true,
+					'applied' => $apply,
+				), 200 );
 
 			case 'cache_flush':
 				$flushed = function_exists( 'wp_cache_flush' ) ? wp_cache_flush() : false;

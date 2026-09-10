@@ -10,8 +10,10 @@ from . import policy
 from .tools import (
     blocks,
     cli_jobs,
+    corrections,
     eval_sandbox,
     files,
+    history,
     magic_login,
     mutate,
     packets,
@@ -40,6 +42,13 @@ mcp = FastMCP(
 # --- Tier 1: Recon & Discovery ---
 mcp.tool()(recon.wp_recon)
 mcp.tool()(site_context.wp_site_context)
+mcp.tool()(corrections.wp_correction_list)
+mcp.tool()(corrections.wp_correction_record)
+mcp.tool()(corrections.wp_correction_retire)
+mcp.tool()(history.wp_history_search)
+mcp.tool()(history.wp_history_packet)
+mcp.tool()(history.wp_history_patterns)
+mcp.tool()(history.wp_history_episodes)
 mcp.tool()(recon.wp_get_option)
 mcp.tool()(recon.wp_get_post_meta)
 mcp.tool()(recon.site_list)
