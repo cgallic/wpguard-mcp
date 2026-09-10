@@ -2,11 +2,9 @@
 
 Used for sites where SSH access isn't available. The plugin exposes one REST
 route (`/wp-json/wpguard/v1/exec`) that accepts a whitelisted command name
-plus JSON args and returns a JSON result. There is deliberately no raw-PHP or
-arbitrary-eval command on this transport -- see
-wp-plugin/wpguard-companion.php and its ALLOWED_COMMANDS whitelist. If you
-need Tier 3 (`wp_eval`), the site must be registered with the ssh transport
-instead.
+plus JSON args and returns a JSON result. The whitelist includes powerful
+administrative operations, so use a dedicated WordPress Application Password
+and keep the route restricted to trusted operators.
 """
 from __future__ import annotations
 
@@ -29,6 +27,12 @@ ALLOWED_COMMANDS = {
     "page_list",
     "page_get",
     "page_replace_content",
+    "post_content_get",
+    "post_content_replace",
+    "revision_list",
+    "revision_get",
+    "revision_find",
+    "revision_revert",
     "cache_flush",
     "eval_sandbox",
     "file_read",
@@ -70,6 +74,19 @@ def _resolve_api_key(site: SiteConfig) -> str:
     return key
 
 
+def _resolve_auth(site: SiteConfig) -> tuple[dict[str, str], httpx.BasicAuth | None]:
+    if site.plugin_auth_mode == "application_password":
+        if not site.wp_username or not site.wp_app_password_env:
+            raise ValueError(f"site '{site.name}' has incomplete Application Password configuration")
+        password = os.environ.get(site.wp_app_password_env, "")
+        if not password:
+            raise ValueError(
+                f"env var '{site.wp_app_password_env}' is not set; cannot authenticate to '{site.name}'"
+            )
+        return {"Content-Type": "application/json"}, httpx.BasicAuth(site.wp_username, password)
+    return {"X-WPGuard-Key": _resolve_api_key(site), "Content-Type": "application/json"}, None
+
+
 def call(site: SiteConfig, command: str, args: dict[str, Any] | None = None, timeout: float = 30.0) -> Any:
     """POST a whitelisted command to the companion plugin's REST route."""
     if command not in ALLOWED_COMMANDS:
@@ -77,14 +94,13 @@ def call(site: SiteConfig, command: str, args: dict[str, Any] | None = None, tim
     if not site.plugin_url:
         raise ValueError(f"site '{site.name}' has no plugin_url configured")
 
-    api_key = _resolve_api_key(site)
     payload = {"command": command, "args": args or {}}
-    headers = {"X-WPGuard-Key": api_key, "Content-Type": "application/json"}
+    headers, auth = _resolve_auth(site)
 
-    response = httpx.post(site.plugin_url, json=payload, headers=headers, timeout=timeout)
+    response = httpx.post(site.plugin_url, json=payload, headers=headers, auth=auth, timeout=timeout)
 
     if response.status_code == 401:
-        raise CompanionPluginError(f"companion plugin rejected the API key for '{site.name}'", 401)
+        raise CompanionPluginError(f"companion plugin rejected authentication for '{site.name}'", 401)
     if response.status_code == 400:
         raise CompanionPluginError(f"companion plugin rejected command '{command}': {response.text}", 400)
     if response.status_code >= 400:

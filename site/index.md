@@ -1,6 +1,6 @@
 # Make the change. Keep what matters.
 
-WP MCP Server connects Claude, Cursor and Codex to WordPress. Preview useful content and settings edits, preserve explicit requirements, and keep local change history.
+WPGuard connects Claude, Cursor and Codex to WordPress. Preview useful content and settings edits, preserve explicit requirements, and keep local change history.
 
 ## What you can do
 
@@ -20,6 +20,6 @@ Core is self-hosted and MIT licensed. Bring an AI client that can reach its auth
 
 ## Cloud
 
-Cloud access is arranged directly for new organizations. The published offers start at $19/month; Agency is $79/month for 25 sites and 5 seats. Confirm features and terms before subscribing. Automatic trials and online checkout are not available.
+Cloud plans start at $19/month. Agency is $79/month for 25 sites and 5 seats, with annual pricing equal to ten monthly payments. Contact us to activate Cloud.
 
 [Published offers](https://wpmcpserver.com/pricing/) · [Request access](mailto:hello@wpmcpserver.com) · [Existing-user sign in](https://app.wpmcp.io/sign-in)

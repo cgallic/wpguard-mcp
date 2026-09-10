@@ -41,8 +41,9 @@ Treat all current scopes as credentials for trusted operators. In particular,
 untrusted observer. Scopes are tool-level, not per-client access controls: a
 caller can choose another registered site or history client name.
 
-The companion plugin has a separate trust boundary. Its `X-WPGuard-Key` grants
-direct access to the command whitelist, including PHP execution and writes.
+The companion plugin has a separate trust boundary. A WordPress Application
+Password for an administrator, or the legacy `X-WPGuard-Key`, grants direct
+access to the command whitelist, including PHP execution and writes.
 Those direct calls do not pass through MCP token scopes, packet approval,
 correction checks, or the server snapshot ledger. Keep the key private and
 restrict network access to the route. A command whitelist is not code isolation.
@@ -51,8 +52,9 @@ restrict network access to the route. A command whitelist is not code isolation.
 
 **Protects against:**
 
-- The three named option, post-meta, and post-content mutation tools preview by
-  default and require an approved packet to apply. Supplying the preview's
+- Guarded option, post-meta, post-content, full-page, block, native-revision,
+  and component-update tools preview by default and require an approved packet
+  to apply. Supplying the preview's
   change digest binds approval to that proposed change.
 - Their applicable correction checks reject failed or unknown results before
   writing. Checks cover exact recorded targets and supported value predicates;
@@ -60,8 +62,8 @@ restrict network access to the route. A command whitelist is not code isolation.
 - These tools record previous values for rollback and accept `expected_etag`
   for changes since preview. Companion content also sends a source digest when
   content is available; applicable content corrections require digest support.
-- The guard-enumeration test covers the four tools in `mutate.GUARDED_TOOLS`
-  (the three named mutations and raw `wp_eval`), not every registered tool.
+- The guard-enumeration test checks the registered guarded-tool inventories
+  across mutation, page, block, revision, and component-update modules.
 
 **Does NOT protect against:**
 
@@ -111,8 +113,8 @@ Tracked openly rather than papered over:
   and credentials; an exact-client search filter is not an authorization rule.
 - **Rotate tokens** periodically and on any suspected compromise. Tokens are
   static shared secrets.
-- **Treat companion-plugin site keys as secrets.** The `X-WPGuard-Key` and any
-  SSH keys the server uses are credentials to the target site.
+- **Treat site credentials as secrets.** WordPress Application Passwords, the
+  legacy `X-WPGuard-Key`, and SSH keys are credentials to the target site.
 - **Keep the state directory private.** It holds snapshots, imported history,
   correction examples, and registry details. Captured option/file values can
   contain passwords or other secrets. Optional Cloud pairing also stores its

@@ -15,6 +15,9 @@ Ask your assistant to:
 - Inspect the active theme, plugins, content types, and available fields before changing a page.
 - Find a target page and approved reference, compare their complete stored content, and preview a bounded full-page diff.
 - Replace a Gutenberg or classic page body while proving named copy survives and refusing to overwrite a later human edit.
+- Update one Gutenberg block structurally, then verify the native WordPress revision created by the write.
+- Test a page change on a registered staging site and capture desktop/mobile evidence before opening production approval.
+- Update one plugin or theme with version pinning, health checks, and automatic restoration after a failed update.
 - Preview a content replacement, setting update, or file edit before applying it.
 - Preserve an approved text fragment, field value, or link during later edits to the same target.
 - Retrieve earlier work for an exact client and show the originating evidence.
@@ -75,8 +78,12 @@ Then register your site and call `wp_site_context`. Registration stores connecti
 |---|---|
 | Understand the site | `wp_site_context`, `wp_recon`, `wp_schema_recon`, and `wp_design_context` expose inventory and configuration. Plugin recognition does not imply a complete native integration. |
 | Finish one page | `wp_page_list`, `wp_page_get`, and `wp_page_compare` resolve the target and reference. `wp_page_replace_content` previews a complete replacement, checks protected copy and corrections, requires the reviewed etag and exact packet, captures a snapshot, then reads the stored result back. `wp_page_render_verify` captures desktop and mobile screenshots with hashes and DOM checks without changing WordPress. |
+| Test before production | `wp_page_stage_and_test` previews both registered peers, applies only to the separately approved staging site, captures rendered evidence, and returns a fresh production preview. It never promotes automatically. |
 | Edit content and settings | `wp_mutate_post_content`, `wp_mutate_post_meta`, and `wp_mutate_option` preview by default, check applicable corrections, and capture previous values before approved writes. |
-| Work with files and blocks | File tools expose reads and edit previews; block tools parse and compose markup. Post creation defaults to draft. |
+| Work with files and blocks | File tools expose reads and edit previews. `wp_mutate_block` selects and patches one parsed Gutenberg block under the same digest, ETag, correction, snapshot, and packet controls. Post creation defaults to draft. |
+| Update components | `wp_vulnerability_scan` returns cached `clean`, `vulnerable`, or `unknown` findings. SSH sites can preview and apply exact plugin/theme updates with post-update health checks and automatic prior-version restoration on failure. |
+| Recover content | List and inspect native WordPress revisions, or preview and approve `wp_revert_to_revision`. WPGuard verifies the resulting revision by its complete content hash. |
+| Run unattended work | Admins can create narrow preapproval policies bound to a site, source, exact verbs, target pattern, and maximum risk. A matching run receives one exact packet; unmatched work remains blocked. |
 | Remember corrections | Record, list, and retire exact-target checks. Failed or unevaluable applicable checks block the three mutation tools above. |
 | Consult previous work | Import packet CSVs or correction-episode JSONL and retrieve their source records without turning imported prose into executable instructions. |
 | Review changes | Change packets record proposals, approvals, and outcomes. `wpguard audit` displays the local ledger; supported snapshots can be used with rollback tools. |
@@ -116,11 +123,11 @@ Imports stay on the instance until queried or otherwise shared by its operator. 
 
 ## Know the boundaries
 
-- **Corrections cover three mutation tools:** option updates, post-meta updates, and post-content replacements. They do not cover raw PHP, SQL, file edits, new posts, rollback, or changes made outside WPGuard.
+- **Correction coverage is explicit:** option, post-meta, post-content, full-page, block, and native-revision content writes evaluate applicable target rules. Raw PHP, SQL, file edits, new posts, component updates, and changes made outside WPGuard use different safeguards.
 - **Rendered verification is bounded.** `wp_page_render_verify` checks the resolved live page at desktop and mobile sizes for HTTP failures, horizontal overflow, broken rendered images, and optional expected text. It stores hashed screenshots and a JSON receipt under `state/render-evidence/`. It does not judge visual quality or exercise interactions and links.
 - **Permissions are not human approval.** A mutate-scoped caller can approve packets. An admin-scoped caller can record or retire corrections. Use your surrounding workflow to decide who may do each.
 - **Snapshots are tool-specific.** There is no guarantee that every exposed operation is reversible. Maintain your site's regular backups.
-- **The companion plugin has administrative capabilities.** It includes PHP execution and file operations. Its API key is a powerful credential; server-side token tiers do not apply to callers who contact the plugin directly.
+- **The companion plugin has administrative capabilities.** Prefer a WordPress Application Password owned by a dedicated administrator. The legacy shared key remains available for existing installations. Server-side token tiers do not protect callers who contact the plugin directly.
 - **Local ledgers assume a single writer.** They are not a shared multi-writer database. A successful replay or test does not establish live production deployment.
 
 The updated companion plugin is required for content correction checks. It returns the source content during preview and checks its digest before applying a content replacement. Older plugin responses cannot satisfy that capability check.

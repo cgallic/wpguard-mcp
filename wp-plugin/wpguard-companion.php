@@ -3,7 +3,7 @@
  * Plugin Name:       WPGuard Companion
  * Plugin URI:        https://github.com/cgallic/wpguard-mcp
  * Description:       WordPress REST bridge for wpguard-mcp on sites without SSH. Provides content updates, file operations, and PHP execution for trusted operators.
- * Version:           0.3.1
+ * Version:           0.4.0
  * Requires at least: 5.6
  * Requires PHP:      8.0
  * Author:            Connor Gallic
@@ -46,6 +46,12 @@ function wpguard_companion_allowed_commands(): array {
 		'page_list',
 		'page_get',
 		'page_replace_content',
+		'post_content_get',
+		'post_content_replace',
+		'revision_list',
+		'revision_get',
+		'revision_find',
+		'revision_revert',
 		'cache_flush',
 		'eval_sandbox',
 		'file_read',
@@ -103,6 +109,11 @@ function wpguard_companion_register_route(): void {
 }
 
 function wpguard_companion_authorize( WP_REST_Request $request ) {
+	// WordPress Application Passwords authenticate REST requests as a real user.
+	// Prefer that core-native identity and capability check when present.
+	if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+		return true;
+	}
 	$expected = wpguard_companion_expected_api_key();
 	if ( ! $expected ) {
 		return new WP_Error( 'wpguard_not_configured', 'WPGuard companion API key is not configured on this site.', array( 'status' => 500 ) );
@@ -313,6 +324,93 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 						'content_sha256' => hash( 'sha256', $updated_post->post_content ),
 					),
 				), 200 );
+
+			case 'post_content_get':
+				$pid  = (int) ( $args['post_id'] ?? 0 );
+				$post = get_post( $pid );
+				if ( ! $post || 'revision' === $post->post_type ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
+				}
+				return new WP_REST_Response( array(
+					'id'             => (int) $post->ID,
+					'post_type'      => $post->post_type,
+					'title'          => get_the_title( $post ),
+					'slug'           => $post->post_name,
+					'status'         => $post->post_status,
+					'modified'       => $post->post_modified_gmt,
+					'date'           => $post->post_date_gmt,
+					'url'            => get_permalink( $post ),
+					'content'        => $post->post_content,
+					'content_sha256' => hash( 'sha256', $post->post_content ),
+				), 200 );
+
+			case 'post_content_replace':
+				$pid  = (int) ( $args['post_id'] ?? 0 );
+				$post = get_post( $pid );
+				if ( ! $post || 'revision' === $post->post_type ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
+				}
+				$expected = $args['expected_content_sha256'] ?? '';
+				$current_digest = hash( 'sha256', $post->post_content );
+				if ( ! is_string( $expected ) || '' === $expected || ! hash_equals( $current_digest, $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Post content changed before replacement.', 'current_content_sha256' => $current_digest ), 409 );
+				}
+				$updated = wp_update_post( array( 'ID' => $pid, 'post_content' => (string) ( $args['new_content'] ?? '' ) ), true );
+				if ( is_wp_error( $updated ) ) {
+					return new WP_REST_Response( array( 'error' => $updated->get_error_message() ), 500 );
+				}
+				$current = get_post( $pid );
+				return new WP_REST_Response( array( 'updated' => true, 'content_sha256' => hash( 'sha256', $current->post_content ) ), 200 );
+
+			case 'revision_list':
+				$pid   = (int) ( $args['post_id'] ?? 0 );
+				$limit = max( 1, min( 100, (int) ( $args['limit'] ?? 20 ) ) );
+				$items = wp_get_post_revisions( $pid, array( 'posts_per_page' => $limit, 'orderby' => 'ID', 'order' => 'DESC' ) );
+				$rows  = array();
+				foreach ( $items as $revision ) {
+					$rows[] = array( 'revision_id' => (int) $revision->ID, 'parent_id' => (int) $revision->post_parent, 'date' => $revision->post_date_gmt, 'modified' => $revision->post_modified_gmt, 'author' => (int) $revision->post_author );
+				}
+				return new WP_REST_Response( array( 'revisions' => $rows ), 200 );
+
+			case 'revision_get':
+				$pid         = (int) ( $args['post_id'] ?? 0 );
+				$revision_id = (int) ( $args['revision_id'] ?? 0 );
+				$revision    = get_post( $revision_id );
+				if ( ! $revision || 'revision' !== $revision->post_type || (int) $revision->post_parent !== $pid ) {
+					return new WP_REST_Response( array( 'error' => 'Revision does not belong to the requested post.' ), 404 );
+				}
+				return new WP_REST_Response( array( 'revision_id' => $revision_id, 'parent_id' => $pid, 'date' => $revision->post_date_gmt, 'modified' => $revision->post_modified_gmt, 'author' => (int) $revision->post_author, 'content' => $revision->post_content, 'content_sha256' => hash( 'sha256', $revision->post_content ) ), 200 );
+
+			case 'revision_find':
+				$pid      = (int) ( $args['post_id'] ?? 0 );
+				$digest   = (string) ( $args['content_sha256'] ?? '' );
+				$excluded = array_map( 'intval', (array) ( $args['exclude_revision_ids'] ?? array() ) );
+				$items    = wp_get_post_revisions( $pid, array( 'posts_per_page' => 100, 'orderby' => 'ID', 'order' => 'DESC' ) );
+				foreach ( $items as $revision ) {
+					if ( ! in_array( (int) $revision->ID, $excluded, true ) && hash_equals( $digest, hash( 'sha256', $revision->post_content ) ) ) {
+						return new WP_REST_Response( array( 'revision_id' => (int) $revision->ID, 'content_sha256' => $digest ), 200 );
+					}
+				}
+				return new WP_REST_Response( array( 'revision_id' => null ), 200 );
+
+			case 'revision_revert':
+				$pid         = (int) ( $args['post_id'] ?? 0 );
+				$revision_id = (int) ( $args['revision_id'] ?? 0 );
+				$post        = get_post( $pid );
+				$revision    = get_post( $revision_id );
+				$expected    = (string) ( $args['expected_content_sha256'] ?? '' );
+				if ( ! $post || ! $revision || 'revision' !== $revision->post_type || (int) $revision->post_parent !== $pid ) {
+					return new WP_REST_Response( array( 'error' => 'Revision does not belong to the requested post.' ), 404 );
+				}
+				if ( '' === $expected || ! hash_equals( hash( 'sha256', $post->post_content ), $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Post changed before revision restore.' ), 409 );
+				}
+				$updated = wp_update_post( array( 'ID' => $pid, 'post_content' => $revision->post_content ), true );
+				if ( is_wp_error( $updated ) ) {
+					return new WP_REST_Response( array( 'error' => $updated->get_error_message() ), 500 );
+				}
+				$current = get_post( $pid );
+				return new WP_REST_Response( array( 'updated' => true, 'content_sha256' => hash( 'sha256', $current->post_content ) ), 200 );
 
 			case 'cache_flush':
 				$flushed = function_exists( 'wp_cache_flush' ) ? wp_cache_flush() : false;

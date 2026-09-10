@@ -17,6 +17,7 @@ from ..config import SiteConfig, get_site_registry
 from ..guard import get_packet_store, get_snapshot_store
 from ..notify import emit_event
 from ..transports import companion_plugin, ssh_wpcli
+from .vulnerabilities import enforce_packet_policy
 
 
 def packet_open(
@@ -62,9 +63,16 @@ def packet_approve(packet_id: str, approver: str) -> dict:
     already-approved packet is a no-op; approving a closed packet is an error.
     """
     store = get_packet_store()
+    proposed = store.get(packet_id)
+    vulnerability = None
+    if proposed is not None and not proposed.is_approved and proposed.target.startswith(("plugin:", "theme:")):
+        vulnerability = enforce_packet_policy(proposed.site, proposed.target)
     packet = store.approve_packet(packet_id, approver=approver)
     emit_event("packet_approved", packet.to_dict())
-    return packet.to_dict()
+    result = packet.to_dict()
+    if vulnerability is not None:
+        result["vulnerability"] = vulnerability
+    return result
 
 
 def packet_log(packet_id: str, message: str) -> dict:
@@ -197,6 +205,9 @@ def site_register(
     layout: str = "classic",
     plugin_url: str | None = None,
     plugin_api_key_env: str | None = None,
+    plugin_auth_mode: str = "api_key",
+    wp_username: str | None = None,
+    wp_app_password_env: str | None = None,
     notes: str = "",
     overwrite: bool = False,
 ) -> dict:
@@ -211,8 +222,10 @@ def site_register(
 
     For transport="companion_plugin": provide plugin_url (the site's
     /wp-json/wpguard/v1/exec URL) and plugin_api_key_env (the NAME of an
-    environment variable on this machine that holds the plugin's API key --
-    never pass the key itself as a tool argument).
+    environment variable on this machine that holds the plugin's API key. To
+    use WordPress-native authentication instead, set
+    `plugin_auth_mode="application_password"`, `wp_username`, and
+    `wp_app_password_env`. Pass only environment-variable names, never secrets.
 
     No credentials are ever written to the registry file itself.
     """
@@ -227,6 +240,9 @@ def site_register(
         layout=layout,
         plugin_url=plugin_url,
         plugin_api_key_env=plugin_api_key_env,
+        plugin_auth_mode=plugin_auth_mode,
+        wp_username=wp_username,
+        wp_app_password_env=wp_app_password_env,
         notes=notes,
     )
     registry = get_site_registry()

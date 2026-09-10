@@ -3,12 +3,13 @@ through the one shared guard, `require_approved_packet`. This test enumerates
 the canonical GUARDED_TOOLS registry and asserts each one calls the shared gate
 -- so a new guarded tool added later cannot silently skip approval.
 """
+
 from __future__ import annotations
 
 import pytest
 
 from wpguard_mcp.guard import PacketRequiredError
-from wpguard_mcp.tools import GUARDED_TOOLS, mutate, pages
+from wpguard_mcp.tools import GUARDED_TOOLS, blocks, mutate, pages, revisions, updates
 
 # Minimal apply=True kwargs for each guarded tool.
 APPLY_KWARGS = {
@@ -26,8 +27,15 @@ def test_every_guarded_tool_is_covered_by_apply_kwargs():
 
 
 def test_global_guarded_registry_includes_page_replacement():
-    assert set(GUARDED_TOOLS) == set(mutate.GUARDED_TOOLS) | set(pages.GUARDED_TOOLS)
+    assert set(GUARDED_TOOLS) == (
+        set(mutate.GUARDED_TOOLS)
+        | set(pages.GUARDED_TOOLS)
+        | set(blocks.GUARDED_TOOLS)
+        | set(revisions.GUARDED_TOOLS)
+        | set(updates.GUARDED_TOOLS)
+    )
     assert "wp_page_replace_content" in GUARDED_TOOLS
+    assert {"wp_plugin_update", "wp_theme_update"} <= set(GUARDED_TOOLS)
 
 
 @pytest.mark.parametrize("tool_name", sorted(mutate.GUARDED_TOOLS))

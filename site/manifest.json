@@ -1,6 +1,6 @@
 {
-  "name": "WP MCP Server",
-  "short_name": "WP MCP",
+  "name": "WPGuard",
+  "short_name": "WPGuard",
   "description": "WordPress edit previews, scoped requirement checks, and change records.",
   "start_url": "/",
   "display": "standalone",

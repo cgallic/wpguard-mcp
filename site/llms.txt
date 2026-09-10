@@ -1,4 +1,4 @@
-# WP MCP Server
+# WPGuard
 
 > Self-hosted WordPress tools for AI clients: preview edits, preserve explicit scoped requirements, and retain change history.
 

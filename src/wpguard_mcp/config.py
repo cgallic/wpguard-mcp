@@ -54,6 +54,9 @@ class SiteConfig:
     # --- companion_plugin transport fields ---
     plugin_url: str | None = None  # e.g. https://example.com/wp-json/wpguard/v1/exec
     plugin_api_key_env: str | None = None  # name of the env var holding the plugin API key
+    plugin_auth_mode: str = "api_key"  # "api_key" (legacy) or "application_password"
+    wp_username: str | None = None
+    wp_app_password_env: str | None = None
 
     notes: str = ""
 
@@ -68,10 +71,21 @@ class SiteConfig:
             )
         if self.transport == "ssh" and not self.ssh_host:
             raise InvalidSiteConfigError("ssh transport requires ssh_host")
-        if self.transport == "companion_plugin" and not (self.plugin_url and self.plugin_api_key_env):
-            raise InvalidSiteConfigError(
-                "companion_plugin transport requires plugin_url and plugin_api_key_env"
-            )
+        if self.transport == "companion_plugin":
+            if not self.plugin_url:
+                raise InvalidSiteConfigError("companion_plugin transport requires plugin_url")
+            if self.plugin_auth_mode == "api_key" and not self.plugin_api_key_env:
+                raise InvalidSiteConfigError("api_key companion auth requires plugin_api_key_env")
+            if self.plugin_auth_mode == "application_password" and not (
+                self.wp_username and self.wp_app_password_env
+            ):
+                raise InvalidSiteConfigError(
+                    "application_password companion auth requires wp_username and wp_app_password_env"
+                )
+            if self.plugin_auth_mode not in ("api_key", "application_password"):
+                raise InvalidSiteConfigError(
+                    "plugin_auth_mode must be 'api_key' or 'application_password'"
+                )
 
     def effective_wp_path(self) -> str | None:
         """The path wp-cli should be pointed at via --path.

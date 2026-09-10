@@ -18,12 +18,17 @@ from .tools import (
     mutate,
     packets,
     pages,
+    preapprovals,
     recon,
     render_verify,
+    revisions,
     rollback,
     schema_recon,
     site_context,
     skills,
+    staging,
+    updates,
+    vulnerabilities,
 )
 
 DEFAULT_HOST = "127.0.0.1"
@@ -34,8 +39,9 @@ mcp = FastMCP(
     instructions=(
         "Enterprise-grade WordPress MCP server. Recon, execute sandboxed PHP, manage files, "
         "compose Gutenberg blocks, launch async WP-CLI background jobs, generate magic login links, "
-        "manage skills playbooks, compare pages against approved references, and safely mutate WordPress "
-        "sites with protected-copy checks, automatic snapshots, dry-run previews, and conflict-aware rollback."
+        "manage skills playbooks, compare and stage pages against approved references, update structured blocks "
+        "and components, inspect native revisions, and safely mutate WordPress sites with protected-copy checks, "
+        "automatic snapshots, dry-run previews, narrow unattended policies, and conflict-aware rollback."
     ),
     host=os.environ.get("WPGUARD_MCP_HOST", DEFAULT_HOST),
     port=int(os.environ.get("WPGUARD_MCP_PORT", str(DEFAULT_PORT))),
@@ -67,6 +73,10 @@ mcp.tool()(pages.wp_page_get)
 mcp.tool()(pages.wp_page_compare)
 mcp.tool()(render_verify.wp_page_render_verify)
 mcp.tool()(pages.wp_page_replace_content)
+mcp.tool()(staging.wp_page_stage_and_test)
+mcp.tool()(vulnerabilities.wp_vulnerability_scan)
+mcp.tool()(updates.wp_plugin_update)
+mcp.tool()(updates.wp_theme_update)
 
 # --- Runtime & Execution Sandbox ---
 mcp.tool()(eval_sandbox.wp_eval_sandbox)
@@ -93,6 +103,10 @@ mcp.tool()(blocks.wp_block_parse)
 mcp.tool()(blocks.wp_block_compose)
 mcp.tool()(blocks.wp_block_validate)
 mcp.tool()(blocks.wp_post_create)
+mcp.tool()(blocks.wp_mutate_block)
+mcp.tool()(revisions.wp_revision_list)
+mcp.tool()(revisions.wp_revision_get)
+mcp.tool()(revisions.wp_revert_to_revision)
 
 # --- Magic Login & Browser Automation ---
 mcp.tool()(magic_login.wp_magic_login)
@@ -113,6 +127,10 @@ mcp.tool()(packets.packet_log)
 mcp.tool()(packets.packet_close)
 mcp.tool()(packets.packet_list)
 mcp.tool()(packets.site_register)
+mcp.tool()(preapprovals.wp_preapproval_create)
+mcp.tool()(preapprovals.wp_preapproval_list)
+mcp.tool()(preapprovals.wp_preapproval_retire)
+mcp.tool()(preapprovals.packet_open_preapproved)
 
 
 class PolicyMiddleware:

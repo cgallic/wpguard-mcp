@@ -73,6 +73,10 @@ TOOL_TIERS = {
     "wp_skill_list": 1,
     "wp_design_context": 1,
     "wp_cli_job_status": 1,
+    "wp_vulnerability_scan": 1,
+    "wp_revision_list": 1,
+    "wp_revision_get": 1,
+    "wp_preapproval_list": 1,
     # Tier 2: guarded named verbs + the packet lifecycle that authorizes them
     "wp_mutate_option": 2,
     "wp_mutate_post_meta": 2,
@@ -96,12 +100,20 @@ TOOL_TIERS = {
     "wp_rollback": 2,
     "wp_db_query": 2,
     "wp_cli_job_cancel": 2,
+    "wp_plugin_update": 2,
+    "wp_theme_update": 2,
+    "wp_mutate_block": 2,
+    "wp_revert_to_revision": 2,
+    "wp_page_stage_and_test": 2,
+    "packet_open_preapproved": 2,
     # Tier 3: raw escape hatch
     "wp_eval": 3,
     "wp_correction_record": 3,
     "wp_correction_retire": 3,
     "wp_cli_run": 3,
     "wp_cli_job_start": 3,
+    "wp_preapproval_create": 3,
+    "wp_preapproval_retire": 3,
 }
 
 DEFAULT_TIER = 3  # fail closed for anything not explicitly mapped

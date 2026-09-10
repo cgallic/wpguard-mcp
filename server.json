@@ -3,7 +3,7 @@
   "name": "io.github.cgallic/wpguard-mcp",
   "title": "WPGuard MCP",
   "description": "WordPress edit previews, scoped correction checks, and change records for trusted operators.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "repository": {
     "url": "https://github.com/cgallic/wpguard-mcp",
     "source": "github"
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/cgallic/wpguard-mcp:0.3.1",
+      "identifier": "ghcr.io/cgallic/wpguard-mcp:0.4.0",
       "runtimeHint": "docker",
       "transport": {
         "type": "streamable-http",

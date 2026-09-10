@@ -95,7 +95,22 @@ Use a host and path that your server's SSH identity can actually access. For a B
 
 Copy `wp-plugin/wpguard-companion.php` from this checkout into a `wpguard-companion` directory under your site's `wp-content/plugins/`, then activate **WPGuard Companion** in WordPress.
 
-Generate a separate random key and set it in `wp-config.php`:
+Create a dedicated WordPress administrator for WPGuard and generate an Application Password under **Users → Profile → Application Passwords**. Put the password in the server environment, for example `WPGUARD_RESTAURANT_APP_PASSWORD`, then register only its environment-variable name:
+
+```python
+site_register(
+    name="restaurant-staging",
+    transport="companion_plugin",
+    plugin_url="https://staging.example.com/wp-json/wpguard/v1/exec",
+    plugin_auth_mode="application_password",
+    wp_username="wpguard-operator",
+    wp_app_password_env="WPGUARD_RESTAURANT_APP_PASSWORD",
+)
+```
+
+WordPress authenticates this request as that user, and the companion requires `manage_options`. Revoke the Application Password from the WordPress profile to cut off access.
+
+Existing installations can continue using a separate legacy shared key in `wp-config.php`:
 
 ```php
 define('WPGUARD_COMPANION_API_KEY', 'your-separate-long-random-key');
@@ -112,7 +127,7 @@ site_register(
 )
 ```
 
-The plugin key authorizes its administrative command set, including PHP and file operations. Keep the key server-side. The MCP server's token scopes and packet checks do not protect direct requests made with that plugin key.
+The legacy plugin key authorizes its administrative command set. Keep it server-side. The MCP server's token scopes and packet checks do not protect direct requests made to the plugin with either WordPress credentials or that key.
 
 ## Preview your first edit
 
@@ -151,6 +166,14 @@ Prepare the complete proposed target content, then call `wp_page_replace_content
 WPGuard refuses the write if the page changed after preview, if a configured correction fails, or if named protected copy was removed. A successful write captures a snapshot and reads the stored content back. Then call `wp_page_render_verify` with the same site and page ID. Pass a distinctive approved string as `expected_text` when useful. Review the desktop and mobile screenshots, hashes, and checks in its evidence receipt before closing the packet.
 
 Rendered verification checks the live page for HTTP failures, horizontal overflow, broken rendered images, and expected text. It does not judge visual quality or exercise interactions and links, so the screenshot review remains part of approval.
+
+For a pre-production run, register production and staging as separate sites and call `wp_page_stage_and_test`. Its preview returns independent staging and production digests. Approve and apply only the staging digest first. WPGuard captures staging evidence and returns a fresh production preview; production still needs its own exact packet.
+
+Use `wp_mutate_block` when changing one Gutenberg block. Select it by block path, type, or stored client ID. Content writes record the newly created native revision when WordPress revisions are enabled. Use `wp_revision_list`, `wp_revision_get`, and the preview-first `wp_revert_to_revision` to inspect or restore one.
+
+On SSH sites, `wp_plugin_update` and `wp_theme_update` preview the installed and target versions. An approved apply reads the version back, checks WordPress, PHP, and the public site, and restores the previous version when the update or health check fails. Configure `WPGUARD_WPSCAN_API_TOKEN` to add cached vulnerability intelligence and set `WPGUARD_VULNERABILITY_POLICY=warn` or `block` according to your operating policy.
+
+For scheduled or webhook work, create a narrow policy with `wp_preapproval_create`. Bind it to one site, source identifier, explicit verbs, target pattern, and maximum risk. The unattended caller uses `packet_open_preapproved`; a nonmatching request cannot create an approved packet.
 
 ## Review records and keep state private
 

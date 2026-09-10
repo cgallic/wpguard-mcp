@@ -67,6 +67,18 @@ def test_companion_plugin_transport_valid():
     assert site.plugin_url.endswith("/exec")
 
 
+def test_companion_plugin_application_password_valid():
+    site = SiteConfig(
+        name="example",
+        transport="companion_plugin",
+        plugin_url="https://example.com/wp-json/wpguard/v1/exec",
+        plugin_auth_mode="application_password",
+        wp_username="operator",
+        wp_app_password_env="WPGUARD_SITE_EXAMPLE_APP_PASSWORD",
+    )
+    assert site.plugin_auth_mode == "application_password"
+
+
 def test_registry_persists_across_instances(tmp_path):
     path = tmp_path / "sites.json"
     registry_a = SiteRegistry(path=path)

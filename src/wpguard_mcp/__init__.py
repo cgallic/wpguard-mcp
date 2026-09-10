@@ -6,4 +6,4 @@ Guard, snapshot, and concurrency coverage varies by tool; token holders must
 be trusted operators.
 """
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
