@@ -2,10 +2,10 @@
 /**
  * Plugin Name:       WPGuard Companion
  * Plugin URI:        https://github.com/cgallic/wpguard-mcp
- * Description:       Enterprise-grade REST bridge for wpguard-mcp on sites without SSH access. Exposes whitelisted endpoints with output buffering, error traps, sandboxed execution, and rollback capability.
+ * Description:       WordPress REST bridge for wpguard-mcp on sites without SSH. Provides content updates, file operations, and PHP execution for trusted operators.
  * Version:           0.2.0
  * Requires at least: 5.6
- * Requires PHP:      7.4
+ * Requires PHP:      8.0
  * Author:            Connor Gallic
  * License:           MIT
  * License URI:       https://opensource.org/licenses/MIT

@@ -5,9 +5,53 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  validate:
+    name: Validate version and release source
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Match package, plugin, and tag versions
+        id: version
+        run: |
+          python - <<'PY'
+          import os, re, tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          plugin = Path("wp-plugin/wpguard-companion.php").read_text()
+          match = re.search(r"^\s*\* Version:\s*(\S+)", plugin, re.MULTILINE)
+          assert match and match[1] == version, "Plugin and package versions differ"
+          module = Path("src/wpguard_mcp/__init__.py").read_text()
+          match = re.search(r'^__version__ = "([^"]+)"', module, re.MULTILINE)
+          assert match and match[1] == version, "Module and package versions differ"
+          if os.environ["GITHUB_REF_TYPE"] == "tag":
+              assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "Tag and package versions differ"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"version={version}\n")
+          PY
+
+      - name: Check release source
+        run: |
+          python -m pip install -e ".[dev]"
+          ruff check .
+          mypy
+          php -l wp-plugin/wpguard-companion.php
+          pytest -q
+
   docker:
     name: Build & push to GHCR
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,11 +65,9 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # workflow_dispatch (e.g. a pre-tag dry run from main) builds for every
-      # target platform but does not push -- there is no tag to derive a
-      # version from, and we don't want an untagged/mislabeled image in GHCR.
+      # Manual runs build both platforms and package the plugin without publishing.
       - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -47,17 +89,13 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          push: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
   companion-plugin-release:
     name: Package companion plugin + create GitHub Release
-    # Only a real tag push has a version to name the zip after and a ref a
-    # GitHub Release can attach to -- workflow_dispatch from a branch has
-    # neither, so skip this job on manual runs rather than fail or publish
-    # something wrong.
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [validate, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -66,20 +104,45 @@ jobs:
 
       - name: Package wp-plugin as a versioned zip
         id: pkg
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           STAGE="wpguard-companion"
           mkdir -p "$STAGE"
           cp wp-plugin/wpguard-companion.php "$STAGE/"
+          cp LICENSE "$STAGE/"
           ZIP="wpguard-companion-${VERSION}.zip"
           zip -r "$ZIP" "$STAGE"
+          unzip -t "$ZIP"
           sha256sum "$ZIP" > "${ZIP}.sha256"
+          sha256sum --check "${ZIP}.sha256"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
           echo "checksum=${ZIP}.sha256" >> "$GITHUB_OUTPUT"
 
+      - name: Keep package from validation runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpguard-companion-${{ needs.validate.outputs.version }}
+          path: |
+            ${{ steps.pkg.outputs.zip }}
+            ${{ steps.pkg.outputs.checksum }}
+          if-no-files-found: error
+
       - name: Create/update GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
+          body: |
+            WPGuard's first public release adds persistent correction checks to supported WordPress edits.
+
+            Save a requirement for one site and field, then check future option, post-meta, or post-content updates against it. Failed or unknown applicable checks refuse the write. Historical requests can be imported privately and retrieved for an exact client; imported narratives do not become executable rules automatically.
+
+            Also includes site context, edit previews, change packets, and prior-value snapshots for supported mutations. Coverage varies by tool. Read [SECURITY.md](https://github.com/cgallic/wpguard-mcp/blob/${{ github.ref_name }}/SECURITY.md) before connecting a site: current token scopes and the companion key are for trusted operators.
+
+            **Install:** use the attached companion ZIP (WordPress 5.6+, PHP 8.0+), or run `ghcr.io/cgallic/wpguard-mcp:${{ needs.validate.outputs.version }}` on Linux amd64 or arm64. The server and companion are separate components. See the [installation guide](https://github.com/cgallic/wpguard-mcp/blob/${{ github.ref_name }}/docs/getting-started.md).
+
+            The attached `.sha256` file verifies the companion ZIP. No customer histories or real correction examples are bundled.
           generate_release_notes: true
           files: |
             ${{ steps.pkg.outputs.zip }}
