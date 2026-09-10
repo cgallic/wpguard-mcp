@@ -140,15 +140,15 @@ jobs:
         with:
           fail_on_unmatched_files: true
           body: |
-            This release adds MCP Registry package metadata and an OCI ownership label for WPGuard.
+            WPGuard 0.4.0 turns repeated WordPress work into a reviewable workflow. It can patch one Gutenberg block, verify the native revision created by a write, test a page on a separately registered staging site, update plugins and themes with health checks and automatic restoration, and authorize narrow unattended jobs through explicit preapproval policies.
 
-            Save a requirement for one site and field, then check future option, post-meta, or post-content updates against it. Failed or unknown applicable checks refuse the write. Historical requests can be imported privately and retrieved for an exact client; imported narratives do not become executable rules automatically.
+            Companion sites can now use a dedicated WordPress Application Password. Optional WPScan intelligence returns clean, vulnerable, or unknown component status and can warn or block approval. Existing shared-key companion installations remain compatible.
 
-            Also includes site context, edit previews, change packets, and prior-value snapshots for supported mutations. Coverage varies by tool. Read [SECURITY.md](https://github.com/cgallic/wpguard-mcp/blob/${{ github.ref_name }}/SECURITY.md) before connecting a site: current token scopes and the companion key are for trusted operators.
+            Read [SECURITY.md](https://github.com/cgallic/wpguard-mcp/blob/${{ github.ref_name }}/SECURITY.md) before connecting a site. WPGuard is built for trusted operators and keeps preview, packet, correction, snapshot, and rollback coverage explicit per tool.
 
             **Install:** use the attached companion ZIP (WordPress 5.6+, PHP 8.0+), or run `ghcr.io/cgallic/wpguard-mcp:${{ needs.validate.outputs.version }}` on Linux amd64 or arm64. The server and companion are separate components. See the [installation guide](https://github.com/cgallic/wpguard-mcp/blob/${{ github.ref_name }}/docs/getting-started.md).
 
-            The attached `.sha256` file verifies the companion ZIP. No customer histories or real correction examples are bundled.
+            The attached `.sha256` file verifies the companion ZIP.
           generate_release_notes: true
           files: |
             ${{ steps.pkg.outputs.zip }}
