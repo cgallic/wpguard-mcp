@@ -87,7 +87,6 @@
 <h1 class="hero-title">WP MCP Server vs WordPress MCP Adapter.</h1>
 <p class="hero-subhead">The official WordPress MCP Adapter exposes WordPress Abilities through MCP. WP MCP Server ships a separate, self-hosted operations server with named WordPress tools, change records, and correction checks.</p>
 <div class="hero-ctas"><div class="btn-row"><a class="btn btn-primary btn-lg" href="https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md">Install WP MCP free</a><a class="text-link-arrow" href="https://github.com/WordPress/mcp-adapter">Read the official adapter repository →</a></div></div>
-<p class="hero-note">Neutral comparison · First-party sources reviewed September 10, 2026</p>
 </div></div></div></section>
 <section class="section section-alt"><div class="container">
 <div class="section-header"><h2 class="section-title">What is the WordPress MCP Adapter?</h2><p class="section-subhead">The WordPress MCP Adapter is an official WordPress AI Team package. It converts registered WordPress Abilities into MCP tools, resources, and prompts. The available business operations depend on the Abilities that core or installed plugins register and expose.</p></div>
@@ -98,7 +97,6 @@
 <tr><td>How are operations selected?</td><td>Abilities are private by default. A developer opts them into MCP with public metadata, and each Ability keeps its permission callback.</td><td>The server defines its tool catalog. Token tiers determine which tools a caller can access, and the registered site determines the WordPress connection.</td></tr>
 <tr><td>What safety lifecycle is included?</td><td>The adapter documents transport authentication, per-Ability permissions, error handling, and observability. Generic preview, human approval, verification, snapshot, and rollback behavior must come from the Ability, plugin, client, or surrounding workflow.</td><td>Three value-mutation tools include preview, packet/state checks, applicable correction checks, and prior-value capture. Other exposed operations do not inherit all of those controls.</td></tr>
 </tbody></table></div>
-<p class="section-subhead">Sources: the <a class="link" href="https://github.com/WordPress/mcp-adapter">official MCP Adapter repository</a>, its <a class="link" href="https://github.com/WordPress/mcp-adapter/blob/trunk/docs/guides/default-server.md">default-server guide</a>, the <a class="link" href="https://developer.wordpress.org/news/2026/02/from-abilities-to-ai-agents-introducing-the-wordpress-mcp-adapter/">WordPress Developer Blog</a>, and the <a class="link" href="https://github.com/cgallic/wpguard-mcp/blob/main/README.md">WPGuard README</a>.</p>
 </div></section>
 <section class="section"><div class="container">
 <div class="section-header"><h2 class="section-title">How does the Adapter expose WordPress Abilities?</h2><p class="section-subhead">The default server uses a discover, inspect, and execute pattern instead of turning every Ability into a top-level tool.</p></div>

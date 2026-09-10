@@ -87,7 +87,6 @@
 <h1 class="hero-title">WP MCP Server vs WPVibe.</h1>
 <p class="hero-subhead">WPVibe provides a hosted remote MCP service and a WordPress plugin for deeper site work. WP MCP Server runs on infrastructure you control and connects registered sites over SSH or a companion plugin.</p>
 <div class="hero-ctas"><div class="btn-row"><a class="btn btn-primary btn-lg" href="https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md">Install WP MCP free</a><a class="text-link-arrow" href="https://wpvibe.ai/docs/getting-started/">Read WPVibe’s setup guide →</a></div></div>
-<p class="hero-note">Neutral comparison · First-party sources reviewed September 10, 2026</p>
 </div></div></div></section>
 <section class="section section-alt"><div class="container">
 <div class="section-header"><h2 class="section-title">What is the difference between WP MCP Server and WPVibe?</h2><p class="section-subhead">WPVibe hosts the MCP service at <code>https://mcp.wpvibe.ai/mcp</code> and relays authorized HTTPS requests to WordPress. WP MCP Core is the MCP service, so its operator owns the runtime, tokens, site registrations, and local records.</p></div>
@@ -98,7 +97,6 @@
 <tr><td>How does preview work?</td><td>WPVibe’s theme workflow uses an isolated draft, a private preview URL, an explicit publish step, and a backup of the previous theme.</td><td>Three named value-mutation tools preview the old and proposed value. That preview does not render a browser page or cover every tool.</td></tr>
 <tr><td>How is risk handled?</td><td>WPVibe documents dry runs and browser approval for destructive or high-risk operations. Content deletes prefer WordPress trash.</td><td>Guarded value writes use packet approval, state checks, and applicable correction checks. Advanced PHP, SQL, file, and CLI operations have different safeguards.</td></tr>
 </tbody></table></div>
-<p class="section-subhead">Sources: <a class="link" href="https://wpvibe.ai/docs/getting-started/">WPVibe getting started</a>, <a class="link" href="https://wpvibe.ai/features/">WPVibe features</a>, <a class="link" href="https://wpvibe.ai/security/">WPVibe security</a>, and the <a class="link" href="https://github.com/cgallic/wpguard-mcp/blob/main/SECURITY.md">WPGuard security boundary</a>.</p>
 </div></section>
 <section class="section"><div class="container">
 <div class="section-header"><h2 class="section-title">WPVibe’s draft theme is a specific preview workflow.</h2><p class="section-subhead">WPVibe’s strongest documented preview path applies to theme work. It should not be generalized into a universal rollback promise.</p></div>
