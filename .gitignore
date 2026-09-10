@@ -32,3 +32,9 @@ Thumbs.db
 
 # --- Local planning/strategy docs (not for the public repo) ---
 workspace/
+
+# --- Private source exports, wherever copied locally ---
+sitechange_*.csv
+correction_episodes.jsonl
+top_lessons.md
+source_index_and_coverage.md

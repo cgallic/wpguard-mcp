@@ -2,6 +2,11 @@
 .github
 .venv
 state/
+workspace/
+**/sitechange_*.csv
+**/correction_episodes.jsonl
+**/top_lessons.md
+**/source_index_and_coverage.md
 tests/
 *.pyc
 __pycache__/

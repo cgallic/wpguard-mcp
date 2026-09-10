@@ -1,14 +1,20 @@
 # Security
 
-wpguard-mcp lets AI clients write to live WordPress sites. This document is the
-honest answer to "what stops this going wrong" — the trust boundaries, what the
-guard does and (importantly) does **not** protect against, the known open
-risks, and how to report a vulnerability.
+wpguard-mcp can change WordPress sites and execute code. Use staging and trusted
+operators. **Token scopes restrict tool access; they do not isolate WordPress or
+guarantee human review.** Guard, snapshot, and concurrency coverage varies by tool.
 
-If you only read one thing: **the guard makes it structurally hard to write to
-a site by accident. It does not, and cannot, stop a fully-authorized,
-deliberately-malicious caller who has been given an admin-scoped token and
-approval rights.** Scope your tokens accordingly.
+## Private learning sources
+
+Client change histories, session exports, source quotations, and real before/after
+examples are private source material. Use them internally to improve the engine;
+publish only generalized implementation and synthetic test fixtures. Do not include
+the original records or identifiable derivatives in commits, releases, images,
+documentation, demonstrations, or sample datasets.
+
+Keep imported history and correction ledgers in `WPGUARD_STATE_DIR`, and private
+analysis in `workspace/`. Both are excluded from Git and Docker build contexts.
+Known source-export filenames are also excluded when copied elsewhere locally.
 
 ## Trust boundaries
 
@@ -19,49 +25,59 @@ Who can call the server:
   (401). There is no anonymous/discovery route.
 - Tokens are **scoped** (`recon` / `mutate` / `admin`). A token only reaches
   the tier of tools its scope allows; a lower-scoped token calling a
-  higher-tier tool gets a `403`, not a silent pass. See "Token scopes" in the
-  README.
+  higher-tier tool gets a `403`, not a silent pass. See
+  [token configuration](docs/getting-started.md#connect-your-mcp-client).
 
 What a token holder can do, per tier:
 
 | Tier | Scope needed | Blast radius if the token is compromised |
 |---|---|---|
-| **Tier 1** (recon) | `recon`+ | Read core version, plugins, options, post meta. **Information disclosure** — including any secret ever stored in an option/meta (API keys, tokens). Treat recon output as a full read of the site's config. |
-| **Tier 2** (guarded verbs) | `mutate`+ | Write options, post meta, post content; flush cache. Bounded by the change-packet guard: an `apply=True` write needs an *approved* packet. A `mutate` token can both propose and approve, so a compromised `mutate` token can self-authorize Tier 2 writes. |
-| **Tier 3** (raw eval) | `admin` | `wp eval` of arbitrary PHP over SSH. **Full site + server compromise** at the WordPress process's privilege level. This is the fire escape, not the front door. |
+| **Tier 1** | `recon`+ | Reads include potentially secret options, metadata, files, and private history. Also includes `wp_magic_login`, which creates an authenticated WordPress login link. This scope is **not strictly read-only**. |
+| **Tier 2** | `mutate`+ | Includes content and file writes, SQL, snippets, and `wp_eval_sandbox`. The PHP wrapper catches errors; it does **not** restrict PHP capabilities. Holders can open and approve their own packets. |
+| **Tier 3** | `admin` | Adds raw PHP, WP-CLI execution, and correction creation/retirement. Code executes with the configured target account's permissions. |
 
-The takeaway: **`admin` tokens are equivalent to shell access on the target.**
-Hand them out like SSH keys, and prefer `recon`/`mutate` tokens for everything
-that doesn't genuinely need raw eval.
+Treat all current scopes as credentials for trusted operators. In particular,
+`mutate` is not a content-only permission, and `recon` is not suitable for an
+untrusted observer. Scopes are tool-level, not per-client access controls: a
+caller can choose another registered site or history client name.
+
+The companion plugin has a separate trust boundary. Its `X-WPGuard-Key` grants
+direct access to the command whitelist, including PHP execution and writes.
+Those direct calls do not pass through MCP token scopes, packet approval,
+correction checks, or the server snapshot ledger. Keep the key private and
+restrict network access to the route. A command whitelist is not code isolation.
 
 ## What the guard protects against — and what it doesn't
 
 **Protects against:**
 
-- *Unintended* writes. Every mutating tool dry-runs by default (`apply=False`)
-  and refuses `apply=True` unless an approved change packet exists for the
-  site. A hallucinated or malformed mutation with no packet simply doesn't
-  execute.
-- *Skipping the gate by drift.* Every Tier 2/3 tool funnels through one shared
-  `require_approved_packet` check, and a test enumerates all guarded tools and
-  asserts each calls it — so a newly-added tool can't quietly omit the guard.
-- *Blind overwrites of changed state.* Optimistic-concurrency etags let an
-  apply refuse to clobber a value that changed since the dry-run.
-- *Losing the previous value.* Every write snapshots the prior value first.
+- The three named option, post-meta, and post-content mutation tools preview by
+  default and require an approved packet to apply. Supplying the preview's
+  change digest binds approval to that proposed change.
+- Their applicable correction checks reject failed or unknown results before
+  writing. Checks cover exact recorded targets and supported value predicates;
+  they do not inspect arbitrary PHP, files, visual output, or every write path.
+- These tools record previous values for rollback and accept `expected_etag`
+  for changes since preview. Companion content also sends a source digest when
+  content is available; applicable content corrections require digest support.
+- The guard-enumeration test covers the four tools in `mutate.GUARDED_TOOLS`
+  (the three named mutations and raw `wp_eval`), not every registered tool.
 
 **Does NOT protect against:**
 
-- *A fully-authorized malicious caller.* If a token has `admin` scope and the
-  actor can approve packets, nothing here stops them opening a packet,
-  approving it, and running `wp_eval`. The guard raises the bar for accidents
-  and creates an audit trail; it is not a sandbox and does not contain a
-  determined insider.
-- *Prompt injection via recon content.* Recon is unguarded by design (it only
-  reads). See "Known open risks" below.
+- *Self-approval.* A `mutate` or `admin` holder can approve their own packet.
+  Approver names and correction acceptance references are caller attestations,
+  not independent authentication of a human decision.
+- *Universal guarding or rollback.* Cache flushing, snippet toggling, and some
+  other operations execute without a preview/packet step. Snapshot coverage
+  varies; sandbox PHP has no prior-state snapshot, and raw PHP records a
+  placeholder that cannot restore arbitrary side effects. Keep real backups.
+- *Prompt injection through returned content.* Envelopes and flags help clients
+  distinguish untrusted data; they cannot enforce model behavior.
 - *Secrets already in the database.* Tier 1 recon can read any option/meta,
   including secrets stored there by other plugins.
-- *Anything the WordPress process itself can do.* Tier 3 eval runs as WordPress;
-  its blast radius is the WordPress user's privileges on that host.
+- *Code execution effects.* Both PHP execution tools can exercise the target
+  process's permissions, including side effects outside the intended change.
 
 ## Known open risks
 
@@ -76,12 +92,12 @@ Tracked openly rather than papered over:
 - **Single-token blast radius before scoping was added** (issue #7, addressed).
   Older deployments using one shared `WPGUARD_MCP_TOKEN` grant admin/Tier 3 to
   every holder. Migrate to scoped tokens.
-- **Lost-update races** (issue #6, mitigated by etags; opt-in). If a caller
-  doesn't pass `expected_etag`, a concurrent editor's change can still be
-  overwritten. Per-target locks (issue #3) reduce, but don't eliminate,
-  multi-agent races.
-- **`WPGUARD_BYPASS_GUARD=1` disables the guard globally.** It exists for local
-  throwaway installs only. Never set it against production.
+- **Lost-update races.** `expected_etag` checks are opt-in and do not make
+  separate reads and writes atomic. Companion content checks its supplied
+  digest server-side, but these checks are not a database transaction spanning
+  all editors or all tools.
+- **`WPGUARD_BYPASS_GUARD=1` bypasses packet approval.** It does not bypass
+  applicable named-mutation correction checks. Keep it unset for real sites.
 
 ## Deployment guidance
 
@@ -90,21 +106,23 @@ Tracked openly rather than papered over:
   reverse proxy you control and terminate TLS on.
 - **Do not run the guard-bypass in production.** Leave `WPGUARD_BYPASS_GUARD`
   unset.
-- **Use least-privilege tokens.** Give each client the lowest scope that works:
-  `recon` for read-only harnesses, `mutate` for content ops, `admin` only where
-  raw eval is genuinely required.
+- **Use the lowest scope that works**, accounting for the capabilities above.
+  For client isolation, run separate instances with separate registries, state,
+  and credentials; an exact-client search filter is not an authorization rule.
 - **Rotate tokens** periodically and on any suspected compromise. Tokens are
   static shared secrets.
 - **Treat companion-plugin site keys as secrets.** The `X-WPGuard-Key` and any
   SSH keys the server uses are credentials to the target site.
-- **Keep the state directory private.** `WPGUARD_STATE_DIR` holds the site
-  registry (hostnames, paths, usernames) and the audit ledger. It contains no
-  passwords, but it's useful recon for an attacker.
+- **Keep the state directory private.** It holds snapshots, imported history,
+  correction examples, and registry details. Captured option/file values can
+  contain passwords or other secrets. Optional Cloud pairing also stores its
+  bearer token in `config/cloud.json`. Restrict access and protect backups.
 - **Consider the notify/cloud hooks' egress.** If you enable
   `WPGUARD_CLOUD_REPORT_URL` or `WPGUARD_NOTIFY_WEBHOOKS`, packet *metadata*
   (site, target, summary, risk, status) leaves the machine to those endpoints.
-  Never full content, never credentials. Point them only at endpoints you
-  trust.
+  Snapshot content is excluded, but caller-written summaries and other metadata
+  are not secret-redacted. Point hooks only at trusted endpoints and keep
+  sensitive values out of those fields.
 
 ## Reporting a vulnerability
 
@@ -112,9 +130,7 @@ Tracked openly rather than papered over:
 
 Open a private report via **GitHub Security Advisories** — ["Report a
 vulnerability"](https://github.com/cgallic/wpguard-mcp/security/advisories/new)
-under the repository's *Security* tab. Private vulnerability reporting is
-enabled for this repo; this is the only channel we're committing to a
-response time on.
+under the repository's *Security* tab.
 
 Please include a description, reproduction steps, affected version/commit, and
 impact. We aim to acknowledge within a few days and will coordinate a fix and

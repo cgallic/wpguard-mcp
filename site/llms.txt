@@ -1,0 +1,13 @@
+# WP MCP Server
+
+> Self-hosted WordPress tools for AI clients: preview edits, preserve explicit scoped requirements, and retain change history.
+
+Core is MIT licensed. Correction rules are explicitly configured and apply to supported edits. Browser verification is separate. Cloud is arranged early access, with no self-service checkout or automatic trial.
+
+## Product
+- [Overview](https://wpmcpserver.com/wordpress-mcp-server/)
+- [Install](https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md)
+- [Security boundaries](https://wpmcpserver.com/wordpress-mcp-security/)
+- [Privacy and access](https://wpmcpserver.com/security/)
+- [Published offers](https://wpmcpserver.com/pricing/)
+- [Markdown summary](https://wpmcpserver.com/index.md)

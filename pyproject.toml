@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "wpguard-mcp"
 version = "0.2.0"
-description = "MCP server that lets AI clients safely recon, mutate, and verify WordPress sites through guarded named verbs instead of raw PHP/eval."
+description = "WordPress MCP server with edit previews, scoped correction checks, and reviewable change records."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Connor Gallic" }]

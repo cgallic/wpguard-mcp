@@ -8,12 +8,13 @@ clients.
 Start the server first:
 
 ```bash
-WPGUARD_MCP_TOKEN=$(python -c "import secrets; print(secrets.token_hex(32))") wpguard-mcp
+export WPGUARD_MCP_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+wpguard-mcp
 # -> http://127.0.0.1:8642/mcp
 ```
 
 Everywhere below, replace `<TOKEN>` with the value of `WPGUARD_MCP_TOKEN` (or a
-scoped token — see the README's "Token scopes"). The endpoint is
+scoped token — see [token configuration](getting-started.md#connect-your-mcp-client)). The endpoint is
 `http://127.0.0.1:8642/mcp` unless you overrode host/port.
 
 > These snippets follow each client's documented HTTP-MCP-with-custom-header
@@ -76,17 +77,16 @@ Or in `.mcp.json` (project-scoped) / your user config:
 
 ## Codex
 
-`~/.codex/config.toml` — Codex launches MCP servers as processes, so use the
-generic `mcp-remote` bridge to reach an HTTP server with a header:
+Add a native Streamable HTTP connection in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.wpguard]
-command = "npx"
-args = [
-  "-y", "mcp-remote", "http://127.0.0.1:8642/mcp",
-  "--header", "Authorization: Bearer <TOKEN>",
-]
+url = "http://127.0.0.1:8642/mcp"
+bearer_token_env_var = "WPGUARD_MCP_TOKEN"
 ```
+
+Make the same server token available in the environment of the Codex process.
+See [OpenAI's MCP configuration documentation](https://developers.openai.com/codex/mcp).
 
 ## Verifying the connection
 
@@ -97,7 +97,7 @@ site_list          # lists registered sites (empty until you site_register)
 ```
 
 Then register a site and recon it before doing anything that writes. See the
-README's "The guarded-change lifecycle" for the full propose → approve → apply
+[first-edit guide](getting-started.md#preview-your-first-edit) for the full propose → approve → apply
 flow.
 
 ## Troubleshooting
