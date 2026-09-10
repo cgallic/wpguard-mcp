@@ -1,0 +1,17 @@
+{
+  "name": "WP MCP Server",
+  "short_name": "WP MCP",
+  "description": "WordPress edit previews, scoped requirement checks, and change records.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "icons": [
+    {
+      "sizes": "any",
+      "purpose": "any",
+      "src": "/favicon.svg",
+      "type": "image/svg+xml"
+    }
+  ]
+}
