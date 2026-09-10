@@ -57,7 +57,8 @@ git clone https://github.com/cgallic/wpguard-mcp.git
 cd wpguard-mcp
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install .
+python -m pip install ".[browser]"
+playwright install chromium
 export WPGUARD_TOKEN_ADMIN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 wpguard-mcp
 ```
@@ -73,7 +74,7 @@ Then register your site and call `wp_site_context`. Registration stores connecti
 | Work | Tools and behavior |
 |---|---|
 | Understand the site | `wp_site_context`, `wp_recon`, `wp_schema_recon`, and `wp_design_context` expose inventory and configuration. Plugin recognition does not imply a complete native integration. |
-| Finish one page | `wp_page_list`, `wp_page_get`, and `wp_page_compare` resolve the target and reference. `wp_page_replace_content` previews a complete replacement, checks protected copy and corrections, requires the reviewed etag and exact packet, captures a snapshot, then reads the stored result back. |
+| Finish one page | `wp_page_list`, `wp_page_get`, and `wp_page_compare` resolve the target and reference. `wp_page_replace_content` previews a complete replacement, checks protected copy and corrections, requires the reviewed etag and exact packet, captures a snapshot, then reads the stored result back. `wp_page_render_verify` captures desktop and mobile screenshots with hashes and DOM checks without changing WordPress. |
 | Edit content and settings | `wp_mutate_post_content`, `wp_mutate_post_meta`, and `wp_mutate_option` preview by default, check applicable corrections, and capture previous values before approved writes. |
 | Work with files and blocks | File tools expose reads and edit previews; block tools parse and compose markup. Post creation defaults to draft. |
 | Remember corrections | Record, list, and retire exact-target checks. Failed or unevaluable applicable checks block the three mutation tools above. |
@@ -116,7 +117,7 @@ Imports stay on the instance until queried or otherwise shared by its operator. 
 ## Know the boundaries
 
 - **Corrections cover three mutation tools:** option updates, post-meta updates, and post-content replacements. They do not cover raw PHP, SQL, file edits, new posts, rollback, or changes made outside WPGuard.
-- **Stored-content verification is not browser verification.** The page workflow reads the saved result back and compares its hash. Rendering, responsive layout, interactions, and link health still need a browser review.
+- **Rendered verification is bounded.** `wp_page_render_verify` checks the resolved live page at desktop and mobile sizes for HTTP failures, horizontal overflow, broken rendered images, and optional expected text. It stores hashed screenshots and a JSON receipt under `state/render-evidence/`. It does not judge visual quality or exercise interactions and links.
 - **Permissions are not human approval.** A mutate-scoped caller can approve packets. An admin-scoped caller can record or retire corrections. Use your surrounding workflow to decide who may do each.
 - **Snapshots are tool-specific.** There is no guarantee that every exposed operation is reversible. Maintain your site's regular backups.
 - **The companion plugin has administrative capabilities.** It includes PHP execution and file operations. Its API key is a powerful credential; server-side token tiers do not apply to callers who contact the plugin directly.

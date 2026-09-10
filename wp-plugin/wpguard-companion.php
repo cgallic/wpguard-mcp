@@ -3,7 +3,7 @@
  * Plugin Name:       WPGuard Companion
  * Plugin URI:        https://github.com/cgallic/wpguard-mcp
  * Description:       WordPress REST bridge for wpguard-mcp on sites without SSH. Provides content updates, file operations, and PHP execution for trusted operators.
- * Version:           0.3.0
+ * Version:           0.3.1
  * Requires at least: 5.6
  * Requires PHP:      8.0
  * Author:            Connor Gallic

@@ -13,7 +13,8 @@ git clone https://github.com/cgallic/wpguard-mcp.git
 cd wpguard-mcp
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install .
+python -m pip install ".[browser]"
+playwright install chromium
 export WPGUARD_TOKEN_ADMIN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 wpguard-mcp
 ```
@@ -24,7 +25,8 @@ wpguard-mcp
 git clone https://github.com/cgallic/wpguard-mcp.git
 Set-Location wpguard-mcp
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m pip install ".[browser]"
+& .\.venv\Scripts\playwright.exe install chromium
 $env:WPGUARD_TOKEN_ADMIN = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_hex(32))"
 & .\.venv\Scripts\wpguard-mcp.exe
 ```
@@ -146,7 +148,9 @@ For Gutenberg and classic page bodies, use `wp_page_list` to find the target and
 
 Prepare the complete proposed target content, then call `wp_page_replace_content(..., apply=False)`. Review its diff, protected-copy report, `etag`, and `change_digest`. Open and approve an exact packet with `target="post:<page_id>:content"`, `verb="wp_page_replace_content"`, and that digest. Apply with the same arguments and the preview's `expected_etag`.
 
-WPGuard refuses the write if the page changed after preview, if a configured correction fails, or if named protected copy was removed. A successful write captures a snapshot and reads the stored content back. The returned verification is a content-hash check; inspect the rendered page at desktop and mobile sizes before closing the packet.
+WPGuard refuses the write if the page changed after preview, if a configured correction fails, or if named protected copy was removed. A successful write captures a snapshot and reads the stored content back. Then call `wp_page_render_verify` with the same site and page ID. Pass a distinctive approved string as `expected_text` when useful. Review the desktop and mobile screenshots, hashes, and checks in its evidence receipt before closing the packet.
+
+Rendered verification checks the live page for HTTP failures, horizontal overflow, broken rendered images, and expected text. It does not judge visual quality or exercise interactions and links, so the screenshot review remains part of approval.
 
 ## Review records and keep state private
 

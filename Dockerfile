@@ -13,7 +13,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy only what's needed to build the wheel, then install.
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-RUN pip install .
+RUN pip install ".[browser]"
 
 # --- runtime stage: minimal image, non-root, venv only ---
 FROM python:3.12-slim AS runtime
@@ -25,16 +25,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=build /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright
+
 # Non-root user; state dir it owns.
 RUN useradd --create-home --uid 10001 wpguard \
     && mkdir -p /state \
     && chown wpguard:wpguard /state
 
-COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     WPGUARD_MCP_HOST=0.0.0.0 \
     WPGUARD_MCP_PORT=8642 \
-    WPGUARD_STATE_DIR=/state
+    WPGUARD_STATE_DIR=/state \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 USER wpguard
 WORKDIR /home/wpguard

@@ -19,6 +19,7 @@ from .tools import (
     packets,
     pages,
     recon,
+    render_verify,
     rollback,
     schema_recon,
     site_context,
@@ -64,6 +65,7 @@ mcp.tool()(mutate.wp_cache_bust)
 mcp.tool()(pages.wp_page_list)
 mcp.tool()(pages.wp_page_get)
 mcp.tool()(pages.wp_page_compare)
+mcp.tool()(render_verify.wp_page_render_verify)
 mcp.tool()(pages.wp_page_replace_content)
 
 # --- Runtime & Execution Sandbox ---

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wpguard-mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "WordPress MCP server with edit previews, scoped correction checks, and reviewable change records."
 readme = "README.md"
 license = { text = "MIT" }
@@ -29,6 +29,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+browser = [
+    "playwright>=1.48.0,<2",
+]
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.6.0",

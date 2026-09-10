@@ -59,6 +59,7 @@ TOOL_TIERS = {
     "wp_page_list": 1,
     "wp_page_get": 1,
     "wp_page_compare": 1,
+    "wp_page_render_verify": 1,
     "site_list": 1,
     "packet_list": 1,
     "wp_schema_recon": 1,
