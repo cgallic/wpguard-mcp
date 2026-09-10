@@ -20,7 +20,7 @@ def wp_block_parse(site: str, content: str) -> dict:
         return {"site": site, "blocks": json.loads(res.stdout.strip())}
     else:
         res = companion_plugin.call(site_config, "block_parse", {"content": content})
-        return {"site": site, "blocks": (res or {}).get("blocks")}
+        return {"site": site, "blocks": res.get("blocks") if isinstance(res, dict) else None}
 
 
 def wp_block_compose(site: str, blocks: list[dict[str, Any]]) -> dict:
@@ -35,7 +35,7 @@ def wp_block_compose(site: str, blocks: list[dict[str, Any]]) -> dict:
         return {"site": site, "markup": res.stdout}
     else:
         res = companion_plugin.call(site_config, "block_compose", {"blocks": blocks})
-        return {"site": site, "markup": (res or {}).get("markup")}
+        return {"site": site, "markup": res.get("markup") if isinstance(res, dict) else None}
 
 
 def wp_block_validate(site: str, block_markup: str) -> dict:

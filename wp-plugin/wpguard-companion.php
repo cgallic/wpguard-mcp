@@ -3,7 +3,7 @@
  * Plugin Name:       WPGuard Companion
  * Plugin URI:        https://github.com/cgallic/wpguard-mcp
  * Description:       WordPress REST bridge for wpguard-mcp on sites without SSH. Provides content updates, file operations, and PHP execution for trusted operators.
- * Version:           0.2.1
+ * Version:           0.3.0
  * Requires at least: 5.6
  * Requires PHP:      8.0
  * Author:            Connor Gallic
@@ -43,6 +43,9 @@ function wpguard_companion_allowed_commands(): array {
 		'get_post_meta',
 		'update_post_meta',
 		'search_replace_post_content',
+		'page_list',
+		'page_get',
+		'page_replace_content',
 		'cache_flush',
 		'eval_sandbox',
 		'file_read',
@@ -148,6 +151,13 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 				}
 				$new_val  = $args['new_value'] ?? '';
 				$prev_val = get_option( $opt_name, null );
+				$expected = $args['expected_value_sha256'] ?? '';
+				if ( ! is_string( $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Expected value digest must be a string.' ), 400 );
+				}
+				if ( '' !== $expected && ! hash_equals( hash( 'sha256', (string) $prev_val ), $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Option changed before update; read it again.' ), 409 );
+				}
 				$updated  = update_option( $opt_name, $new_val );
 				return new WP_REST_Response( array( 'option_name' => $opt_name, 'previous_value' => $prev_val, 'new_value' => $new_val, 'updated' => $updated ), 200 );
 
@@ -167,6 +177,13 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 				}
 				$val = $args['new_value'] ?? '';
 				$prev = get_post_meta( $pid, $key, true );
+				$expected = $args['expected_value_sha256'] ?? '';
+				if ( ! is_string( $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Expected value digest must be a string.' ), 400 );
+				}
+				if ( '' !== $expected && ! hash_equals( hash( 'sha256', (string) $prev ), $expected ) ) {
+					return new WP_REST_Response( array( 'error' => 'Post meta changed before update; read it again.' ), 409 );
+				}
 				$updated = update_post_meta( $pid, $key, $val );
 				return new WP_REST_Response( array( 'post_id' => $pid, 'meta_key' => $key, 'previous_value' => $prev, 'new_value' => $val, 'updated' => $updated ), 200 );
 
@@ -202,6 +219,99 @@ function wpguard_companion_handle_exec( WP_REST_Request $request ): WP_REST_Resp
 					'previous_content' => $content,
 					'supports_expected_content_sha256' => true,
 					'applied' => $apply,
+				), 200 );
+
+			case 'page_list':
+				$post_type = sanitize_key( (string) ( $args['post_type'] ?? 'page' ) );
+				$post_status = sanitize_key( (string) ( $args['post_status'] ?? 'publish' ) );
+				$per_page = min( 100, max( 1, (int) ( $args['per_page'] ?? 20 ) ) );
+				$page_number = max( 1, (int) ( $args['page'] ?? 1 ) );
+				$query = new WP_Query( array(
+					'post_type' => $post_type,
+					'post_status' => $post_status,
+					's' => sanitize_text_field( (string) ( $args['search'] ?? '' ) ),
+					'posts_per_page' => $per_page,
+					'paged' => $page_number,
+					'orderby' => 'modified',
+					'order' => 'DESC',
+				) );
+				$pages = array_map( static function ( $post ) {
+					return array(
+						'id' => (int) $post->ID,
+						'title' => get_the_title( $post ),
+						'slug' => $post->post_name,
+						'status' => $post->post_status,
+						'modified' => $post->post_modified_gmt,
+						'url' => get_permalink( $post ),
+					);
+				}, $query->posts );
+				return new WP_REST_Response( array(
+					'pages' => $pages,
+					'page' => $page_number,
+					'per_page' => $per_page,
+					'total' => (int) $query->found_posts,
+					'total_pages' => (int) $query->max_num_pages,
+				), 200 );
+
+			case 'page_get':
+				$pid = (int) ( $args['post_id'] ?? 0 );
+				$post = get_post( $pid );
+				if ( ! $post ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
+				}
+				if ( 'page' !== $post->post_type ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} is not a page" ), 400 );
+				}
+				return new WP_REST_Response( array(
+					'id' => (int) $post->ID,
+					'title' => get_the_title( $post ),
+					'slug' => $post->post_name,
+					'status' => $post->post_status,
+					'modified' => $post->post_modified_gmt,
+					'url' => get_permalink( $post ),
+					'content' => $post->post_content,
+					'content_sha256' => hash( 'sha256', $post->post_content ),
+				), 200 );
+
+			case 'page_replace_content':
+				$pid = (int) ( $args['post_id'] ?? 0 );
+				$post = get_post( $pid );
+				if ( ! $post ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} not found" ), 404 );
+				}
+				if ( 'page' !== $post->post_type ) {
+					return new WP_REST_Response( array( 'error' => "Post {$pid} is not a page" ), 400 );
+				}
+				$new_content = (string) ( $args['new_content'] ?? '' );
+				$expected = $args['expected_content_sha256'] ?? '';
+				if ( ! is_string( $expected ) || '' === $expected ) {
+					return new WP_REST_Response( array( 'error' => 'Expected content digest is required.' ), 400 );
+				}
+				$current_digest = hash( 'sha256', $post->post_content );
+				if ( ! hash_equals( $current_digest, $expected ) ) {
+					return new WP_REST_Response( array(
+						'error' => 'Post content changed before replacement; read it again.',
+						'current_content_sha256' => $current_digest,
+					), 409 );
+				}
+				$updated = wp_update_post( array( 'ID' => $pid, 'post_content' => $new_content ), true );
+				if ( is_wp_error( $updated ) ) {
+					return new WP_REST_Response( array( 'error' => $updated->get_error_message() ), 500 );
+				}
+				$updated_post = get_post( $pid );
+				return new WP_REST_Response( array(
+					'updated' => true,
+					'previous_content_sha256' => $current_digest,
+					'page' => array(
+						'id' => (int) $updated_post->ID,
+						'title' => get_the_title( $updated_post ),
+						'slug' => $updated_post->post_name,
+						'status' => $updated_post->post_status,
+						'modified' => $updated_post->post_modified_gmt,
+						'url' => get_permalink( $updated_post ),
+						'content' => $updated_post->post_content,
+						'content_sha256' => hash( 'sha256', $updated_post->post_content ),
+					),
 				), 200 );
 
 			case 'cache_flush':

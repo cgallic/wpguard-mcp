@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from wpguard_mcp.guard import PacketRequiredError
-from wpguard_mcp.tools import mutate
+from wpguard_mcp.tools import GUARDED_TOOLS, mutate, pages
 
 # Minimal apply=True kwargs for each guarded tool.
 APPLY_KWARGS = {
@@ -23,6 +23,11 @@ def test_every_guarded_tool_is_covered_by_apply_kwargs():
     # If someone adds a guarded tool but forgets to give this test kwargs for
     # it, fail loudly rather than silently skipping it.
     assert set(mutate.GUARDED_TOOLS) == set(APPLY_KWARGS)
+
+
+def test_global_guarded_registry_includes_page_replacement():
+    assert set(GUARDED_TOOLS) == set(mutate.GUARDED_TOOLS) | set(pages.GUARDED_TOOLS)
+    assert "wp_page_replace_content" in GUARDED_TOOLS
 
 
 @pytest.mark.parametrize("tool_name", sorted(mutate.GUARDED_TOOLS))

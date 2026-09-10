@@ -26,12 +26,18 @@ class WP_REST_Response {
     public $status;
     function __construct($data, $status) { $this->data = $data; $this->status = $status; }
 }
-function get_post($id) { return (object) array('post_content' => $GLOBALS['content']); }
+function get_post($id) { return (object) array(
+    'ID' => $id, 'post_content' => $GLOBALS['content'], 'post_name' => 'example',
+    'post_status' => 'publish', 'post_type' => 'page', 'post_modified_gmt' => '2026-01-01 00:00:00'
+); }
+function get_the_title($post) { return 'Example'; }
+function get_permalink($post) { return 'https://example.test/example/'; }
 function wp_update_post($data) {
     $GLOBALS['writes'][] = $data;
     $GLOBALS['content'] = $data['post_content'];
     return $data['ID'];
 }
+function is_wp_error($value) { return false; }
 // Minimal sanitizer stub exercises the handler's exact-name comparison.
 function sanitize_text_field($value) {
     return trim(preg_replace('/[\r\n\t ]+/', ' ', strip_tags($value)));
@@ -123,6 +129,54 @@ def test_real_php_invalid_digest_type_rejected_without_write(tmp_path):
     result = call_route(tmp_path, apply=True, expected_content_sha256=[])
     assert result["status"] == 400
     assert result["writes"] == []
+
+
+def test_real_php_page_replace_content_is_atomic_and_exact(tmp_path):
+    content = "current café"
+    result = call_route(
+        tmp_path,
+        content=content,
+        command="page_replace_content",
+        new_content="restored body",
+        expected_content_sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    )
+    assert result["status"] == 200
+    assert result["data"]["updated"] is True
+    assert result["data"]["page"]["content"] == "restored body"
+    assert result["writes"] == [{"ID": 42, "post_content": "restored body"}]
+
+
+def test_real_php_page_replace_content_rejects_stale_digest(tmp_path):
+    result = call_route(
+        tmp_path,
+        command="page_replace_content",
+        new_content="restored body",
+        expected_content_sha256=hashlib.sha256(b"stale").hexdigest(),
+    )
+    assert result["status"] == 409
+    assert result["writes"] == []
+
+
+@pytest.mark.parametrize(
+    "command,field,extra",
+    [
+        ("update_option", "option_name", {}),
+        ("update_post_meta", "meta_key", {"post_id": 42}),
+    ],
+)
+def test_real_php_scalar_updates_reject_stale_rollback_digest(tmp_path, command, field, extra):
+    result = call_route(
+        tmp_path,
+        command=command,
+        **{
+            field: "protected_key",
+            "new_value": "restored",
+            "expected_value_sha256": hashlib.sha256(b"not-current").hexdigest(),
+            **extra,
+        },
+    )
+    assert result["status"] == 409
+    assert not any(operation[0].startswith("update_") for operation in result["operations"])
 
 
 @pytest.mark.parametrize("command,field", [

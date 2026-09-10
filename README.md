@@ -13,6 +13,8 @@ It is the open-source server behind **WP MCP Server**. Run it on your own machin
 Ask your assistant to:
 
 - Inspect the active theme, plugins, content types, and available fields before changing a page.
+- Find a target page and approved reference, compare their complete stored content, and preview a bounded full-page diff.
+- Replace a Gutenberg or classic page body while proving named copy survives and refusing to overwrite a later human edit.
 - Preview a content replacement, setting update, or file edit before applying it.
 - Preserve an approved text fragment, field value, or link during later edits to the same target.
 - Retrieve earlier work for an exact client and show the originating evidence.
@@ -71,6 +73,7 @@ Then register your site and call `wp_site_context`. Registration stores connecti
 | Work | Tools and behavior |
 |---|---|
 | Understand the site | `wp_site_context`, `wp_recon`, `wp_schema_recon`, and `wp_design_context` expose inventory and configuration. Plugin recognition does not imply a complete native integration. |
+| Finish one page | `wp_page_list`, `wp_page_get`, and `wp_page_compare` resolve the target and reference. `wp_page_replace_content` previews a complete replacement, checks protected copy and corrections, requires the reviewed etag and exact packet, captures a snapshot, then reads the stored result back. |
 | Edit content and settings | `wp_mutate_post_content`, `wp_mutate_post_meta`, and `wp_mutate_option` preview by default, check applicable corrections, and capture previous values before approved writes. |
 | Work with files and blocks | File tools expose reads and edit previews; block tools parse and compose markup. Post creation defaults to draft. |
 | Remember corrections | Record, list, and retire exact-target checks. Failed or unevaluable applicable checks block the three mutation tools above. |
@@ -113,7 +116,7 @@ Imports stay on the instance until queried or otherwise shared by its operator. 
 ## Know the boundaries
 
 - **Corrections cover three mutation tools:** option updates, post-meta updates, and post-content replacements. They do not cover raw PHP, SQL, file edits, new posts, rollback, or changes made outside WPGuard.
-- **A preview is not browser verification.** Rendering, responsive layout, interactions, and link health need separate checks.
+- **Stored-content verification is not browser verification.** The page workflow reads the saved result back and compares its hash. Rendering, responsive layout, interactions, and link health still need a browser review.
 - **Permissions are not human approval.** A mutate-scoped caller can approve packets. An admin-scoped caller can record or retire corrections. Use your surrounding workflow to decide who may do each.
 - **Snapshots are tool-specific.** There is no guarantee that every exposed operation is reversible. Maintain your site's regular backups.
 - **The companion plugin has administrative capabilities.** It includes PHP execution and file operations. Its API key is a powerful credential; server-side token tiers do not apply to callers who contact the plugin directly.

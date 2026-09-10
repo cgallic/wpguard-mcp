@@ -17,6 +17,7 @@ from .tools import (
     magic_login,
     mutate,
     packets,
+    pages,
     recon,
     rollback,
     schema_recon,
@@ -32,8 +33,8 @@ mcp = FastMCP(
     instructions=(
         "Enterprise-grade WordPress MCP server. Recon, execute sandboxed PHP, manage files, "
         "compose Gutenberg blocks, launch async WP-CLI background jobs, generate magic login links, "
-        "manage skills playbooks, and safely mutate WordPress sites with automatic snapshots, dry-run "
-        "previews, and 1-click rollback."
+        "manage skills playbooks, compare pages against approved references, and safely mutate WordPress "
+        "sites with protected-copy checks, automatic snapshots, dry-run previews, and conflict-aware rollback."
     ),
     host=os.environ.get("WPGUARD_MCP_HOST", DEFAULT_HOST),
     port=int(os.environ.get("WPGUARD_MCP_PORT", str(DEFAULT_PORT))),
@@ -60,6 +61,10 @@ mcp.tool()(mutate.wp_mutate_option)
 mcp.tool()(mutate.wp_mutate_post_meta)
 mcp.tool()(mutate.wp_mutate_post_content)
 mcp.tool()(mutate.wp_cache_bust)
+mcp.tool()(pages.wp_page_list)
+mcp.tool()(pages.wp_page_get)
+mcp.tool()(pages.wp_page_compare)
+mcp.tool()(pages.wp_page_replace_content)
 
 # --- Runtime & Execution Sandbox ---
 mcp.tool()(eval_sandbox.wp_eval_sandbox)

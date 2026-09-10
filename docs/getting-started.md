@@ -140,6 +140,14 @@ A mutate-scoped caller can perform both proposal and approval. If your workflow 
 
 For the three correction-aware tools, failing or unevaluable applicable corrections block apply. Successful writes capture a snapshot and record their packet association. Read the returned results rather than assuming an approval or request guarantees a completed write.
 
+## Finish one page from an approved reference
+
+For Gutenberg and classic page bodies, use `wp_page_list` to find the target and approved reference page. Call `wp_page_compare` with both IDs and any exact strings that must survive. The comparison is read-only and returns page hashes, a bounded diff, correction results, and a protected-copy report.
+
+Prepare the complete proposed target content, then call `wp_page_replace_content(..., apply=False)`. Review its diff, protected-copy report, `etag`, and `change_digest`. Open and approve an exact packet with `target="post:<page_id>:content"`, `verb="wp_page_replace_content"`, and that digest. Apply with the same arguments and the preview's `expected_etag`.
+
+WPGuard refuses the write if the page changed after preview, if a configured correction fails, or if named protected copy was removed. A successful write captures a snapshot and reads the stored content back. The returned verification is a content-hash check; inspect the rendered page at desktop and mobile sizes before closing the packet.
+
 ## Review records and keep state private
 
 ```bash

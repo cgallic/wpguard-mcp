@@ -50,7 +50,7 @@ def save_cloud_config(config: CloudConfig, path: Path | str = CLOUD_CONFIG_PATH)
 
 
 def pair_instance(code: str, name: str, url: str | None = None, path: Path | str = CLOUD_CONFIG_PATH) -> CloudConfig:
-    base_url = (url or os.environ.get(CLOUD_URL_ENV, "https://api.wpmcp.io")).rstrip("/")
+    base_url = (url or os.environ.get(CLOUD_URL_ENV) or "https://api.wpmcp.io").rstrip("/")
     response = httpx.post(
         f"{base_url}/api/v1/instances/pair",
         json={"code": code, "name": name},

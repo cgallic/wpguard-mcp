@@ -134,13 +134,13 @@ def _check(kind: str, expected: Any, path: str, value: Any) -> dict:
                 raise ValueError("Unclosed anchor cannot be reliably interpreted")
             matches = (expected["href"], " ".join(expected["text"].split())) in parser.links
         elif kind == "equals":
-            if isinstance(value, (dict, list)) or isinstance(expected, (dict, list)) or value is None:
+            if isinstance(value, dict | list) or isinstance(expected, dict | list) or value is None:
                 raise ValueError("equals requires present scalar input; use JSON pointer for structured values")
             matches = _equal(value, expected)
         else:
             if isinstance(value, str):
                 value = json.loads(value)
-            if not isinstance(value, (dict, list)):
+            if not isinstance(value, dict | list):
                 raise ValueError("JSON pointer requires an object or array")
             matches = _equal(_pointer(value, path), expected)
         return {"status": "pass" if matches else "fail"}
