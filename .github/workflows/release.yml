@@ -26,7 +26,7 @@ jobs:
         id: version
         run: |
           python - <<'PY'
-          import os, re, tomllib
+          import json, os, re, tomllib
           from pathlib import Path
           version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
           plugin = Path("wp-plugin/wpguard-companion.php").read_text()
@@ -35,6 +35,12 @@ jobs:
           module = Path("src/wpguard_mcp/__init__.py").read_text()
           match = re.search(r'^__version__ = "([^"]+)"', module, re.MULTILINE)
           assert match and match[1] == version, "Module and package versions differ"
+          server = json.loads(Path("server.json").read_text())
+          assert server["version"] == version, "Registry and package versions differ"
+          assert server["name"] == "io.github.cgallic/wpguard-mcp", "Unexpected registry namespace"
+          assert server["packages"][0]["identifier"] == f"ghcr.io/cgallic/wpguard-mcp:{version}", "OCI version differs"
+          label = f'LABEL io.modelcontextprotocol.server.name="{server["name"]}"'
+          assert label in Path("Dockerfile").read_text(), "OCI ownership label differs"
           if os.environ["GITHUB_REF_TYPE"] == "tag":
               assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "Tag and package versions differ"
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
@@ -134,7 +140,7 @@ jobs:
         with:
           fail_on_unmatched_files: true
           body: |
-            WPGuard's first public release adds persistent correction checks to supported WordPress edits.
+            This release adds MCP Registry package metadata and an OCI ownership label for WPGuard.
 
             Save a requirement for one site and field, then check future option, post-meta, or post-content updates against it. Failed or unknown applicable checks refuse the write. Historical requests can be imported privately and retrieved for an exact client; imported narratives do not become executable rules automatically.
 
@@ -147,3 +153,29 @@ jobs:
           files: |
             ${{ steps.pkg.outputs.zip }}
             ${{ steps.pkg.outputs.checksum }}
+
+  registry-publish:
+    name: Publish to the MCP Registry
+    needs: [docker, companion-plugin-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install latest mcp-publisher
+        run: |
+          curl --fail --location --retry 3 \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/mcp-publisher.tar.gz"
+          tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP" mcp-publisher
+
+      - name: Authenticate with GitHub Actions OIDC
+        run: |
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc --registry=https://registry.modelcontextprotocol.io
+
+      - name: Publish the tagged server metadata
+        run: |
+          "$RUNNER_TEMP/mcp-publisher" publish server.json

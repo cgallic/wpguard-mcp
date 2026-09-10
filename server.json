@@ -1,0 +1,53 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.cgallic/wpguard-mcp",
+  "title": "WPGuard MCP",
+  "description": "WordPress edit previews, scoped correction checks, and change records for trusted operators.",
+  "version": "0.2.1",
+  "repository": {
+    "url": "https://github.com/cgallic/wpguard-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://wpmcpserver.com/",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/cgallic/wpguard-mcp:0.2.1",
+      "runtimeHint": "docker",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:8642/mcp",
+        "headers": [
+          {
+            "name": "Authorization",
+            "description": "Bearer followed by a space and the same WPGUARD_MCP_TOKEN configured below.",
+            "isRequired": true,
+            "isSecret": true
+          }
+        ]
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--publish",
+          "value": "127.0.0.1:8642:8642",
+          "description": "Expose the MCP endpoint on host loopback only."
+        },
+        {
+          "type": "named",
+          "name": "--volume",
+          "value": "wpguard-state:/state",
+          "description": "Persist the private site registry, corrections, and change records."
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "WPGUARD_MCP_TOKEN",
+          "description": "Generate a strong secret for trusted operators. This token grants admin tool access.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

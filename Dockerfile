@@ -18,6 +18,8 @@ RUN pip install .
 # --- runtime stage: minimal image, non-root, venv only ---
 FROM python:3.12-slim AS runtime
 
+LABEL io.modelcontextprotocol.server.name="io.github.cgallic/wpguard-mcp"
+
 # openssh-client so the SSH+WP-CLI transport works out of the box.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client \
