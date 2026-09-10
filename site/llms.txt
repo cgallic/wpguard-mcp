@@ -11,3 +11,6 @@ Core is MIT licensed. Correction rules are explicitly configured and apply to su
 - [Privacy and access](https://wpmcpserver.com/security/)
 - [Published offers](https://wpmcpserver.com/pricing/)
 - [Markdown summary](https://wpmcpserver.com/index.md)
+
+## Comparisons
+- [WPGuard vs NovaMira](https://wpmcpserver.com/compare/novamira/)
