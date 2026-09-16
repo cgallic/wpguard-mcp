@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var ENDPOINT = "https://kaibuilds.com/api/lead";
+  var ENDPOINT = "/api/lead";
   var SLUG = "wpmcpserver";
 
   function gtagSafe() {
