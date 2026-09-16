@@ -1020,4 +1020,51 @@ caption { caption-side: bottom; text-align: left; padding: 12px 18px; font-size:
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
 .btn:active { transform: translateY(1px); }
 .price, table { font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   Checkout placeholders + Cloud-access lead form (pricing page)
+   ========================================================================== */
+.btn-checkout-placeholder,
+.btn-checkout-placeholder:hover {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.btn-checkout-placeholder:active { transform: none; }
+.request-plan-link { display: block; text-align: center; margin-top: 10px; font-size: 0.85rem; }
+
+.lead-form-section { margin-top: 10px; }
+.lead-form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 640px;
+  margin: 32px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-row label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.form-row input, .form-row select, .form-row textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 0.95rem;
+  width: 100%;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.form-status { margin-top: 14px; font-size: 0.9rem; min-height: 1.2em; }
+.form-status.success { color: var(--accent); }
+.form-status.error { color: var(--danger); }
+.form-fallback { margin-top: 18px; font-size: 0.85rem; color: var(--text-dim); text-align: center; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: 0s !important; } }

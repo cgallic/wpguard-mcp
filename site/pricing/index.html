@@ -71,7 +71,7 @@
       </div>
       <div class="nav-cta-group">
         <a href="https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Install WPGuard free</a>
-        <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-outline btn-sm">Request Cloud access</a>
+        <a href="#lead-form" class="btn btn-outline btn-sm">Request Cloud access</a>
       </div>
     </nav>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
@@ -92,7 +92,7 @@
         <p class="hero-subhead">Run WPGuard Core on your own infrastructure for free. Choose Cloud when you want shared packet history, approvals, and team access.</p>
         <div class="hero-ctas">
           <div class="btn-row">
-            <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-primary btn-lg">Request Cloud access</a>
+            <a href="#lead-form" class="btn btn-primary btn-lg">Request Cloud access</a>
             <a href="https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md" class="btn btn-outline btn-lg" target="_blank" rel="noopener">Install WPGuard free</a>
           </div>
         </div>
@@ -184,7 +184,9 @@
               <li>30-day Cloud history</li>
             </ul>
           </details>
-          <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-outline btn-block">Request Cloud access</a>
+          <!-- checkout placeholder: wire to Stripe / payment link when ready -->
+          <button type="button" class="btn btn-outline btn-block btn-checkout-placeholder" disabled aria-disabled="true">Checkout — coming soon</button>
+          <a href="#lead-form" class="request-plan-link text-link-arrow" data-plan-tier="Solo Cloud">Request this plan <span class="arrow">→</span></a>
         </div>
 
         <div class="pricing-card pricing-card-featured">
@@ -208,7 +210,9 @@
               <li>One-year Cloud history</li>
             </ul>
           </details>
-          <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-primary btn-block">Request Cloud access</a>
+          <!-- checkout placeholder: wire to Stripe / payment link when ready -->
+          <button type="button" class="btn btn-primary btn-block btn-checkout-placeholder" disabled aria-disabled="true">Checkout — coming soon</button>
+          <a href="#lead-form" class="request-plan-link text-link-arrow" data-plan-tier="Agency">Request this plan <span class="arrow">→</span></a>
         </div>
 
         <div class="pricing-card">
@@ -231,7 +235,9 @@
               <li>Three-year Cloud history</li>
             </ul>
           </details>
-          <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-outline btn-block">Request Cloud access</a>
+          <!-- checkout placeholder: wire to Stripe / payment link when ready -->
+          <button type="button" class="btn btn-outline btn-block btn-checkout-placeholder" disabled aria-disabled="true">Checkout — coming soon</button>
+          <a href="#lead-form" class="request-plan-link text-link-arrow" data-plan-tier="Agency Pro">Request this plan <span class="arrow">→</span></a>
         </div>
 
         <div class="pricing-card">
@@ -254,7 +260,9 @@
               <li>Seven-year Cloud history</li>
             </ul>
           </details>
-          <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-outline btn-block">Request Cloud access</a>
+          <!-- checkout placeholder: wire to Stripe / payment link when ready -->
+          <button type="button" class="btn btn-outline btn-block btn-checkout-placeholder" disabled aria-disabled="true">Checkout — coming soon</button>
+          <a href="#lead-form" class="request-plan-link text-link-arrow" data-plan-tier="Platform">Request this plan <span class="arrow">→</span></a>
         </div>
 
         <div class="pricing-card">
@@ -277,7 +285,7 @@
               <li>Negotiated deployment and support</li>
             </ul>
           </details>
-          <a href="mailto:hello@wpmcpserver.com?subject=Enterprise%20inquiry" class="btn btn-outline btn-block">Talk to us</a>
+          <a href="#lead-form" class="btn btn-outline btn-block request-plan-link" data-plan-tier="Enterprise">Talk to us</a>
         </div>
 
       </div>
@@ -288,8 +296,50 @@
           <div class="callout-title">Founding Agency offer — first 20 agencies only</div>
           <div class="callout-body">50% off the normal monthly price for 12 months (<strong>$39/month</strong>), available for the published 12-month period. Direct line to the founder, onboarding included, and the option to be a public design partner. No setup fee.</div>
         </div>
-        <a href="mailto:hello@wpmcpserver.com?subject=Founding%20Agency%20offer" class="btn btn-primary flex-shrink-0">Claim founding pricing</a>
+        <a href="#lead-form" class="btn btn-primary flex-shrink-0 request-plan-link" data-plan-tier="Agency" data-note="founding">Claim founding pricing</a>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ LEAD FORM — Get the paid plan ============ -->
+  <section class="section lead-form-section" id="lead-form">
+    <div class="container-narrow">
+      <div class="section-header center">
+        <span class="section-kicker">Talk to us</span>
+        <h2 class="section-title">Request Cloud access</h2>
+        <p class="section-subhead">Tell us which plan fits and we'll follow up by email. Self-serve checkout isn't wired up yet — a human sets up billing after this conversation.</p>
+      </div>
+      <form id="lead-capture-form" class="lead-form-card" novalidate>
+        <div class="form-row">
+          <label for="lead-name">Name</label>
+          <input type="text" id="lead-name" name="name" autocomplete="name" required>
+        </div>
+        <div class="form-row">
+          <label for="lead-email">Email</label>
+          <input type="email" id="lead-email" name="email" autocomplete="email" required>
+        </div>
+        <div class="form-row">
+          <label for="lead-company">Company</label>
+          <input type="text" id="lead-company" name="company" autocomplete="organization">
+        </div>
+        <div class="form-row">
+          <label for="lead-plan">Plan interest</label>
+          <select id="lead-plan" name="plan_tier">
+            <option value="Solo Cloud">Solo Cloud — $19/mo</option>
+            <option value="Agency">Agency — $79/mo (early access)</option>
+            <option value="Agency Pro">Agency Pro — $199/mo</option>
+            <option value="Platform">Platform — $499/mo</option>
+            <option value="Enterprise">Enterprise — custom, from $12,000/year</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="lead-message">Message (optional)</label>
+          <textarea id="lead-message" name="message" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="lead-submit-btn">Request Cloud access</button>
+        <p class="form-status" id="lead-form-status" role="status" aria-live="polite"></p>
+      </form>
+      <p class="form-fallback">Prefer email? Write to <a href="mailto:hello@wpmcpserver.com" class="link">hello@wpmcpserver.com</a> and we'll reply directly.</p>
     </div>
   </section>
 
@@ -355,7 +405,7 @@
       <div class="cta-band-inner">
         <h2 class="section-title">Install Core free. Talk to us about Cloud.</h2>
         <div class="btn-row">
-          <a href="mailto:hello@wpmcpserver.com?subject=WP%20MCP%20Cloud%20early%20access" class="btn btn-primary btn-lg">Request Cloud access</a>
+          <a href="#lead-form" class="btn btn-primary btn-lg">Request Cloud access</a>
           <a href="https://github.com/cgallic/wpguard-mcp/blob/main/docs/getting-started.md" class="btn btn-outline btn-lg" target="_blank" rel="noopener">Install WPGuard free</a>
         </div>
       </div>
@@ -427,5 +477,6 @@
     });
   }
 </script>
+<script src="/assets/lead-form.js" defer></script>
 </body>
 </html>
