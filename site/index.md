@@ -1,6 +1,6 @@
 # Make the change. Keep what matters.
 
-WPGuard connects Claude, Cursor and Codex to WordPress. Preview useful content and settings edits, preserve explicit requirements, and keep local change history.
+WPGuard is a self-hosted WordPress MCP server for Claude, Cursor and Codex. Preview supported content and settings edits, check explicit requirements, and keep local change history.
 
 ## What you can do
 
