@@ -22,4 +22,4 @@ Core is self-hosted and MIT licensed. Bring an AI client that can reach its auth
 
 Cloud plans start at $19/month. Agency is $79/month for 25 sites and 5 seats, with annual pricing equal to ten monthly payments. Contact us to activate Cloud.
 
-[Published offers](https://wpmcpserver.com/pricing/) · [Request access](mailto:hello@wpmcpserver.com) · [Existing-user sign in](https://app.wpmcp.io/sign-in)
+[Published offers](https://wpmcpserver.com/pricing/) · [Request access](https://wpmcpserver.com/pricing/#lead-form) · [Existing-user sign in](https://app.wpmcp.io/sign-in)

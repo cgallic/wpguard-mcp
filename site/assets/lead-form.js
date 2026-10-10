@@ -21,9 +21,19 @@
     link.addEventListener("click", function () {
       var tier = link.getAttribute("data-plan-tier") || "";
       gtagSafe("event", "select_plan", { plan_tier: tier });
+      gtagSafe("event", "get_paid_plan", {
+        plan_tier: tier,
+        event_category: "pricing_tier",
+        event_label: "Get the paid plan: " + tier
+      });
+      gtagSafe("event", "Get the paid plan", {
+        plan_tier: tier,
+        event_category: "pricing_tier",
+        event_label: tier
+      });
 
       var select = document.getElementById("lead-plan");
-      if (select && tier) {
+      if (select && tier && tier !== "Cloud") {
         select.value = tier;
       }
 
@@ -75,6 +85,7 @@
 
     var payload = {
       slug: SLUG,
+      source: "satellite_wpmcpserver",
       name: name,
       email: email,
       company: company,
